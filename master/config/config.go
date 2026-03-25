@@ -34,8 +34,11 @@ type SMTPConfig struct {
 }
 
 func Load() *Config {
+	// 同时支持 GIN_MODE 和 APP_MODE，GIN_MODE 优先
+	mode := getEnv("GIN_MODE", getEnv("APP_MODE", "debug"))
+
 	cfg := &Config{
-		Mode: getEnv("APP_MODE", "debug"),
+		Mode: mode,
 		Server: ServerConfig{
 			Addr: getEnv("SERVER_ADDR", ":8080"),
 		},

@@ -4,36 +4,38 @@ primary_region = "sin"
 [build]
 
 [env]
-  APP_MODE = "release"
+  GIN_MODE = "release"
   SERVER_ADDR = ":8080"
   DB_PATH = "/data/jumpfrp.db"
+  TZ = "Asia/Shanghai"
 
 [mounts]
   source = "jumpfrp_data"
   destination = "/data"
 
-[[services]]
-  protocol = "tcp"
+[[http_service]]
   internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
 
-  [services.concurrency]
+  [http_service.concurrency]
     type = "connections"
     hard_limit = 500
     soft_limit = 400
 
-  [[services.ports]]
-    port = 80
-    handlers = ["http"]
-    [services.ports.http_options]
-      redirect_http = true
+[[vm]]
+  memory = "256mb"
+  cpu_kind = "shared"
+  cpus = 1
 
-  [[services.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-  [[services.http_checks]]
+[checks]
+  [checks.health]
+    port = 8080
+    type = "http"
     interval = "30s"
-    timeout = "5s"
-    grace_period = "10s"
+    timeout = "10s"
+    grace_period = "30s"
     method = "GET"
     path = "/health"
