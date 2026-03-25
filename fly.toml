@@ -1,5 +1,5 @@
-app = "jumpfrp-master"
-primary_region = "hkg"
+app = "jumpfrp"
+primary_region = "sin"
 
 [build]
 
