@@ -1,7 +1,7 @@
 # JumpFrp — 内网穿透托管平台 项目规划方案
 
-> 版本：v1.3（完成版）
-> 日期：2026-03-25
+> 版本：v1.4（完成版 + 部署指南）
+> 日期：2026-03-26
 > 状态：✅ 全部完成
 
 ---
@@ -50,7 +50,7 @@
 | 层级 | 技术选型 | 说明 |
 |------|---------|------|
 | **后端主控** | Go 1.22 + Gin | 高性能，与 frp 同语言 |
-| **数据库** | SQLite (gorm) | 轻量，单文件，易备份 |
+| **数据库** | SQLite (glebarez/sqlite) | **纯 Go 实现，无需 CGO**，Fly.io 兼容 |
 | **前端** | Vue 3 + Vite + Element Plus | 成熟生态，后台管理友好 |
 | **节点 Agent** | Go 轻量 HTTP 服务 | 部署在每台节点，接收主控指令 |
 | **一键安装** | Shell 脚本 (Bash) | Ubuntu 专用，systemd 服务注册 |
@@ -191,7 +191,7 @@ JumpFrp/
 ├── docs/
 │   └── deployment.md          # 完整部署文档
 │
-├── Dockerfile                 # 多阶段构建
+├── Dockerfile                 # 多阶段构建（含前端构建）
 ├── fly.toml                   # Fly.io 部署配置
 ├── dev.sh                     # 本地开发启动脚本
 └── README.md
@@ -228,7 +228,82 @@ JumpFrp/
 
 ---
 
-## 十、已确认配置
+## 十、Fly.io 部署注意事项（重要）
+
+### 10.1 已踩过的坑
+
+| 坑 | 原因 | 解决方案 |
+|----|------|---------|
+| **SQLite CGO 报错** | `gorm.io/driver/sqlite` 依赖 `go-sqlite3`，需要 CGO，Alpine 镜像没有 gcc | 换成 `github.com/glebarez/sqlite`（纯 Go 实现，无需 CGO） |
+| **前端 404** | Dockerfile 没有复制前端构建产物 | 使用多阶段构建，Node 阶段构建前端，复制到最终镜像 |
+| **API 请求 localhost** | 生产环境用了开发环境的 API 地址 | 创建 `.env.production` 设置 `VITE_API_URL=/api`，使用相对路径 |
+| **健康检查超时** | 自定义 health check 配置太严格 | 删除 `[checks]` 配置，使用 `[http_service]` 默认检查 |
+| **hkg 区域废弃** | Fly.io 已弃用香港区域 | 改用 `sin`（新加坡）或其他可用区域 |
+| **构建超时** | Fly.io Depot builder 网络抖动 | 重试 `fly deploy` 或加 `--builder local` |
+
+### 10.2 部署前检查清单
+
+- [ ] `fly.toml` 中 `primary_region` 不是 `hkg`（已废弃）
+- [ ] `Dockerfile` 包含前端构建阶段（Node + Go 多阶段）
+- [ ] `frontend/.env.production` 存在且 `VITE_API_URL=/api`
+- [ ] 已创建 Volume：`fly volumes create jumpfrp_data --size 1 --region <region>`
+- [ ] 已设置 JWT_SECRET：`fly secrets set JWT_SECRET="<随机字符串>"`
+- [ ] 代码已推送到 GitHub
+
+### 10.3 完整部署命令
+
+```bash
+# 1. 登录
+fly auth login
+
+# 2. 创建 app（如果还没创建）
+fly apps create jumpfrp
+
+# 3. 创建 Volume（数据持久化）
+fly volumes create jumpfrp_data --size 1 --region sin --app jumpfrp
+
+# 4. 设置环境变量
+fly secrets set JWT_SECRET="$(openssl rand -base64 48)" --app jumpfrp
+fly secrets set GIN_MODE="release" --app jumpfrp
+
+# 5. 部署
+fly deploy --app jumpfrp
+
+# 6. 验证
+curl https://jumpfrp.fly.dev/health
+```
+
+---
+
+## 十一、开发注意事项
+
+### 11.1 本地开发
+
+```bash
+bash dev.sh
+```
+- 前端：`http://localhost:5173`
+- 后端：`http://localhost:8080`
+- 自动使用 `.env.development` 中的 `VITE_API_URL=http://localhost:8080/api`
+
+### 11.2 生产环境 API 路径
+
+前端代码中区分开发和生产：
+```typescript
+const isDev = import.meta.env.DEV
+const baseURL = isDev ? 'http://localhost:8080/api' : '/api'
+```
+
+### 11.3 SQLite 驱动选择
+
+| 驱动 | CGO | Fly.io 兼容 | 说明 |
+|------|-----|------------|------|
+| `gorm.io/driver/sqlite` | 需要 | ❌ | 底层 `go-sqlite3`，需要 gcc |
+| `github.com/glebarez/sqlite` | 不需要 | ✅ | **推荐**，纯 Go 实现 |
+
+---
+
+## 十二、已确认配置
 
 | 项目 | 决定 |
 |------|------|
@@ -242,13 +317,13 @@ JumpFrp/
 
 ---
 
-## 十一、开发进度
+## 十三、开发进度
 
 - [x] **Phase 1** — 基础框架（后端骨架、用户认证、前端框架、管理后台基础页面）
 - [x] **Phase 2** — 节点管理（Agent、一键安装脚本、心跳监控、节点离线检测）
 - [x] **Phase 3** — 隧道核心（端口分配、VIP 权限校验、隧道管理、frpc 配置生成）
 - [x] **Phase 4** — VIP 系统（套餐展示、手动开通、订单管理）
 - [x] **Phase 5** — 完善优化（邮件通知、流量统计、安全加固、部署文档）
-- [x] **补丁** — 节点编辑功能、管理员手动添加用户、重置密码、SMTP 后台配置
+- [x] **补丁** — 节点编辑功能、管理员手动添加用户、重置密码、SMTP 后台配置、Fly.io 部署修复
 
 *方案文件路径：`/Users/doting/Documents/Code/JumpFrp/PROJECT.md`*

@@ -58,7 +58,7 @@ JumpFrp/
 ├── frontend/      # 前端 (Vue 3 + Element Plus)
 ├── scripts/       # install.sh / uninstall.sh
 ├── docs/          # deployment.md
-├── Dockerfile     # 多阶段构建
+├── Dockerfile     # 多阶段构建（Node + Go）
 ├── fly.toml       # Fly.io 配置
 └── dev.sh         # 本地开发一键启动
 ```
@@ -125,21 +125,50 @@ bash <(wget -qO- https://api.jumpfrp.top/install.sh) \
 
 ---
 
-## 🌐 生产部署
+## 🌐 生产部署（Fly.io）
 
-详见 [docs/deployment.md](docs/deployment.md)
-
-**推荐方案：**
-- 主控服务 → [Fly.io](https://fly.io)（永久免费）
-- 节点服务器 → 任意 Ubuntu VPS
+### 完整部署流程
 
 ```bash
-# 部署到 Fly.io
-fly launch
-fly volumes create jumpfrp_data --size 1
-fly secrets set JWT_SECRET="your-strong-secret"
-fly deploy
+# 1. 安装 flyctl 并登录
+curl -L https://fly.io/install.sh | sh
+fly auth login
+
+# 2. 创建 app
+cd jumpfrp
+fly apps create jumpfrp
+
+# 3. 创建 Volume（数据持久化）
+fly volumes create jumpfrp_data --size 1 --region sin --app jumpfrp
+
+# 4. 设置环境变量
+fly secrets set JWT_SECRET="$(openssl rand -base64 48)" --app jumpfrp
+fly secrets set GIN_MODE="release" --app jumpfrp
+
+# 5. 部署
+fly deploy --app jumpfrp
+
+# 6. 验证
+curl https://jumpfrp.fly.dev/health
 ```
+
+### ⚠️ 常见坑与解决方案
+
+| 问题 | 原因 | 解决 |
+|------|------|------|
+| `CGO_ENABLED=0` SQLite 报错 | 默认 sqlite 驱动需要 CGO | 已修复：使用 `github.com/glebarez/sqlite`（纯 Go） |
+| 前端 404 | 镜像里没有前端文件 | 已修复：Dockerfile 多阶段构建自动打包前端 |
+| API 请求 `localhost:8080` | 生产环境用了开发 API 地址 | 已修复：`.env.production` 使用相对路径 `/api` |
+| 健康检查超时 | 自定义 check 配置太严格 | 已修复：删除 `[checks]`，用默认 http_service 检查 |
+| hkg 区域不可用 | Fly.io 已弃用香港区域 | 改用 `sin`（新加坡）或其他区域 |
+| 构建超时 | Depot builder 网络问题 | 重试 `fly deploy` 或加 `--builder local` |
+
+### 部署前检查清单
+
+- [ ] `fly.toml` 中 `primary_region` 不是 `hkg`
+- [ ] 已创建 Volume：`fly volumes create jumpfrp_data --size 1 --region sin`
+- [ ] 已设置 JWT_SECRET：`fly secrets set JWT_SECRET="<随机字符串>"`
+- [ ] 代码已推送到 GitHub
 
 ---
 
@@ -167,6 +196,35 @@ fly deploy
 - 登录接口限流：10 次/分钟/IP
 - 全局限流：120 次/分钟/IP
 - 节点 Agent 使用独立 Token 鉴权
+
+---
+
+## 📝 技术要点
+
+### SQLite 驱动选择
+
+本项目使用 `github.com/glebarez/sqlite` 替代 `gorm.io/driver/sqlite`，原因：
+- **纯 Go 实现**，无需 CGO
+- **Fly.io 兼容**，Alpine 镜像无需 gcc
+- **功能完整**，支持所有 SQLite 特性
+
+### 前端 API 路径
+
+```typescript
+// 开发环境
+VITE_API_URL=http://localhost:8080/api
+
+// 生产环境
+VITE_API_URL=/api  // 相对路径，自动使用当前域名
+```
+
+### Dockerfile 多阶段构建
+
+```dockerfile
+# 阶段1：构建前端（Node）
+# 阶段2：构建后端（Go）
+# 阶段3：运行（Alpine）
+```
 
 ---
 
