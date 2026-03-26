@@ -88,12 +88,12 @@ func main() {
 		c.File("./scripts/uninstall.sh")
 	})
 
-	// Agent 二进制下载（由管理员上传到 agent/ 目录）
+	// Agent 二进制下载（压缩后的 .gz 文件）
 	r.GET("/download/agent-linux-amd64", func(c *gin.Context) {
-		c.File("./agent/jumpfrp-agent-linux-amd64")
+		c.File("./agent/jumpfrp-agent-linux-amd64.gz")
 	})
 	r.GET("/download/agent-linux-arm64", func(c *gin.Context) {
-		c.File("./agent/jumpfrp-agent-linux-arm64")
+		c.File("./agent/jumpfrp-agent-linux-arm64.gz")
 	})
 
 	// 前端静态文件（生产环境）
