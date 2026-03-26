@@ -97,6 +97,11 @@ func createNode(db *gorm.DB) gin.HandlerFunc {
 		node.AgentToken = newToken(32)
 		node.Status = model.NodeStatusOffline
 
+		// 如果没有提供 slug，自动生成
+		if node.Slug == "" {
+			node.Slug = fmt.Sprintf("node-%s", newToken(6))
+		}
+
 		if err := db.Create(&node).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error()})
 			return
