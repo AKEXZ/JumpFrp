@@ -81,7 +81,7 @@ else
 fi
 
 FRPS_URL="https://github.com/fatedier/frp/releases/download/v${FRPS_VERSION}/frp_${FRPS_VERSION}_linux_${FRPS_ARCH}.tar.gz"
-FRPS_MIRROR="https://gitproxy.ake.cx/${FRPS_URL}"
+FRPS_MIRROR="https://ghproxy.com/${FRPS_URL}"
 
 # 尝试下载
 if ! wget -q --timeout=30 -O /tmp/frp.tar.gz "$FRPS_URL" 2>/dev/null; then
@@ -96,12 +96,12 @@ tar -xzf /tmp/frp.tar.gz -C /tmp/
 cp /tmp/frp_*/frps $INSTALL_DIR/frps
 chmod +x $INSTALL_DIR/frps
 rm -rf /tmp/frp_*
-echo -e "${GREEN}frps 已安装${NC}"
+echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
 # 下载 Agent
 echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
 AGENT_URL="${MASTER_URL}/download/agent-linux-${FRPS_ARCH}"
-AGENT_MIRROR="https://ghproxy.com/${AGENT_URL}"
+AGENT_MIRROR="https://gitproxy.ake.cx/${AGENT_URL}"
 
 if ! wget -q --timeout=30 -O $INSTALL_DIR/agent "$AGENT_URL" 2>/dev/null; then
   echo "尝试镜像下载..."
@@ -123,18 +123,29 @@ AGENT_PORT=${AGENT_PORT}
 FRPS_PORT=${FRPS_PORT}
 EOF
 
-# 创建 frps 配置
-cat > $INSTALL_DIR/frps.ini << EOF
-[common]
-bind_port = ${FRPS_PORT}
-token = ${TOKEN}
-dashboard_port = $((FRPS_PORT + 1))
-dashboard_user = admin
-dashboard_pwd = jumpfrp-dashboard
-log_file = /var/log/frps.log
-log_level = info
-log_max_days = 3
+# 创建 frps.toml 配置 (TOML格式，frp 0.61.0+)
+cat > $INSTALL_DIR/frps.toml << EOF
+# frps 服务端配置
+bindPort = ${FRPS_PORT}
+auth.method = "token"
+auth.token = "${TOKEN}"
+
+# Web 面板（可选）
+webServer.addr = "0.0.0.0"
+webServer.port = $((FRPS_PORT + 1))
+webServer.user = "admin"
+webServer.password = "jumpfrp-dashboard"
+
+# 日志
+log.to = "/var/log/frps.log"
+log.level = "info"
+log.maxDays = 3
+
+# 传输层安全（建议生产环境启用）
+# transport.tls.force = true
 EOF
+
+echo -e "${GREEN}配置文件已创建 (TOML格式)${NC}"
 
 # 创建 systemd 服务
 echo -e "${GREEN}[4/5] 创建系统服务...${NC}"
@@ -147,7 +158,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/opt/jumpfrp/frps -c /opt/jumpfrp/frps.ini
+ExecStart=/opt/jumpfrp/frps -c /opt/jumpfrp/frps.toml
 Restart=always
 RestartSec=5
 

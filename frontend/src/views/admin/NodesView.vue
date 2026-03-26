@@ -51,8 +51,8 @@
         <el-form-item label="节点名称">
           <el-input v-model="nodeForm.name" placeholder="如：上海节点01" />
         </el-form-item>
-        <el-form-item label="节点标识">
-          <el-input v-model="nodeForm.slug" placeholder="留空则自动生成，如：sh-01（唯一，创建后不建议修改）" :disabled="isEdit" />
+        <el-form-item label="节点标识" required>
+          <el-input v-model="nodeForm.slug" placeholder="必填，唯一标识，如：sh-01、hz-01（创建后不可修改）" :disabled="isEdit" />
         </el-form-item>
         <el-form-item label="IP地址">
           <el-input v-model="nodeForm.ip" placeholder="公网 IP" />
