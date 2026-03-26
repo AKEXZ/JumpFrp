@@ -114,32 +114,41 @@ chmod +x $INSTALL_DIR/frps
 rm -rf /tmp/frp_*
 echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
-# 下载 Agent（从主控下载压缩文件）
+# 下载 Agent（从 GitHub Releases 下载）
 echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
-AGENT_URL="${MASTER_URL}/download/agent-linux-${FRPS_ARCH}.gz"
+AGENT_VERSION="v1.0.0"
+AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}.gz"
+AGENT_MIRROR="https://gitproxy.ake.cx/${AGENT_URL}"
 
-echo "下载地址: $AGENT_URL"
-echo -e "${YELLOW}正在连接主控...${NC}"
-if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_URL" 2>&1; then
-  # 解压
-  echo -e "${YELLOW}正在解压...${NC}"
-  if gunzip -f /tmp/agent.gz && mv /tmp/agent $INSTALL_DIR/agent; then
-    chmod +x $INSTALL_DIR/agent
-    # 验证是否为有效的 ELF 可执行文件
-    if file $INSTALL_DIR/agent | grep -q "ELF"; then
-      echo -e "${GREEN}Agent 安装完成${NC}"
-    else
-      echo -e "${RED}Agent 解压失败：文件格式不正确${NC}"
-      rm -f $INSTALL_DIR/agent
-      exit 1
-    fi
+echo "下载地址: $AGENT_MIRROR"
+echo -e "${YELLOW}正在连接...${NC}"
+if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_MIRROR" 2>&1; then
+  echo -e "${GREEN}Agent 下载完成${NC}"
+else
+  echo -e "${YELLOW}代理下载失败，尝试直连 GitHub...${NC}"
+  if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_URL" 2>&1; then
+    echo -e "${GREEN}Agent 下载完成${NC}"
   else
-    echo -e "${RED}Agent 解压失败${NC}"
+    echo -e "${RED}下载 Agent 失败${NC}"
+    echo "提示: 请确保 Agent 已上传到 GitHub Releases: https://github.com/AKEXZ/JumpFrp/releases"
+    exit 1
+  fi
+fi
+
+# 解压
+echo -e "${YELLOW}正在解压...${NC}"
+if gunzip -f /tmp/agent.gz && mv /tmp/agent $INSTALL_DIR/agent; then
+  chmod +x $INSTALL_DIR/agent
+  # 验证是否为有效的 ELF 可执行文件
+  if file $INSTALL_DIR/agent | grep -q "ELF"; then
+    echo -e "${GREEN}Agent 安装完成${NC}"
+  else
+    echo -e "${RED}Agent 解压失败：文件格式不正确${NC}"
+    rm -f $INSTALL_DIR/agent
     exit 1
   fi
 else
-  echo -e "${RED}下载 Agent 失败${NC}"
-  echo "提示：请检查主控服务是否正常运行"
+  echo -e "${RED}Agent 解压失败${NC}"
   exit 1
 fi
 
