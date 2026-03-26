@@ -40,7 +40,7 @@
         <template #default="{ row }">
           <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
           <el-button size="small" @click="showInstallCmd(row)">安装</el-button>
-          <el-button size="small" type="warning" @click="showUninstallCmd(row)">卸载</el-button>
+          <el-button size="small" type="warning" @click="showUninstallCmd()">卸载</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
         </template>
       </el-table-column>
@@ -236,7 +236,7 @@ async function showInstallCmd(row: any) {
   cmdVisible.value = true
 }
 
-function showUninstallCmd(row: any) {
+function showUninstallCmd() {
   uninstallCmd.value = `bash <(wget -qO- https://api.jumpfrp.top/uninstall.sh)`
   uninstallVisible.value = true
 }
