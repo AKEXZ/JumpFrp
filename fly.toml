@@ -13,7 +13,7 @@ primary_region = "sin"
   source = "jumpfrp_data"
   destination = "/data"
 
-[[http_service]]
+[http_service]
   internal_port = 8080
   force_https = true
   auto_stop_machines = "stop"

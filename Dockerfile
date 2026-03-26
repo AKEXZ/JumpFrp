@@ -1,6 +1,7 @@
 FROM golang:1.24-alpine AS builder
 WORKDIR /app
 COPY master/ .
+ENV CGO_ENABLED=0
 ENV GOTOOLCHAIN=auto
 RUN go build -o jumpfrp-master ./cmd/server
 

@@ -12,7 +12,7 @@ import (
 	"github.com/jumpfrp/master/internal/model"
 	"github.com/jumpfrp/master/internal/scheduler"
 	"github.com/jumpfrp/master/internal/service"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
