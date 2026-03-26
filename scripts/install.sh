@@ -81,7 +81,7 @@ else
 fi
 
 FRPS_URL="https://github.com/fatedier/frp/releases/download/v${FRPS_VERSION}/frp_${FRPS_VERSION}_linux_${FRPS_ARCH}.tar.gz"
-FRPS_MIRROR="https://ghproxy.com/${FRPS_URL}"
+FRPS_MIRROR="https://gitproxy.ake.cx/${FRPS_URL}"
 
 # 尝试下载
 if ! wget -q --timeout=30 -O /tmp/frp.tar.gz "$FRPS_URL" 2>/dev/null; then
