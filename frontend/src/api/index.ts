@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
+const isDev = import.meta.env.DEV
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: isDev ? (import.meta.env.VITE_API_URL || 'http://localhost:8080/api') : '/api',
   timeout: 10000,
 })
 
