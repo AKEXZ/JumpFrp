@@ -36,10 +36,11 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
-          <el-button size="small" @click="showInstallCmd(row)">安装命令</el-button>
+          <el-button size="small" @click="showInstallCmd(row)">安装</el-button>
+          <el-button size="small" type="warning" @click="showUninstallCmd(row)">卸载</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row.id)">删除</el-button>
         </template>
       </el-table-column>
@@ -137,6 +138,18 @@
         <el-button @click="cmdVisible = false">关闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 卸载命令对话框 -->
+    <el-dialog v-model="uninstallVisible" title="节点卸载命令" width="700px">
+      <el-alert type="warning" :closable="false" style="margin-bottom:16px">
+        在目标服务器上以 root 身份执行以下命令，将停止并卸载 frps 和 Agent 服务，删除所有相关文件。
+      </el-alert>
+      <el-input v-model="uninstallCmd" type="textarea" :rows="3" readonly />
+      <template #footer>
+        <el-button type="primary" @click="copyUninstallCmd">复制命令</el-button>
+        <el-button @click="uninstallVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -148,9 +161,11 @@ import { adminApi } from '../../api'
 const nodes = ref([])
 const formVisible = ref(false)
 const cmdVisible = ref(false)
+const uninstallVisible = ref(false)
 const isEdit = ref(false)
 const saving = ref(false)
 const installCmd = ref('')
+const uninstallCmd = ref('')
 const editId = ref<number | null>(null)
 let refreshTimer: ReturnType<typeof setInterval>
 
@@ -221,8 +236,18 @@ async function showInstallCmd(row: any) {
   cmdVisible.value = true
 }
 
+function showUninstallCmd(row: any) {
+  uninstallCmd.value = `bash <(wget -qO- https://api.jumpfrp.top/uninstall.sh)`
+  uninstallVisible.value = true
+}
+
 function copyCmd() {
   navigator.clipboard.writeText(installCmd.value)
+  ElMessage.success('已复制到剪贴板')
+}
+
+function copyUninstallCmd() {
+  navigator.clipboard.writeText(uninstallCmd.value)
   ElMessage.success('已复制到剪贴板')
 }
 

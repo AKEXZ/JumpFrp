@@ -114,17 +114,26 @@ chmod +x $INSTALL_DIR/frps
 rm -rf /tmp/frp_*
 echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
-# 下载 Agent（从主控下载，不用代理）
+# 下载 Agent（需要先编译并上传到 GitHub Releases）
 echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
-AGENT_URL="${MASTER_URL}/download/agent-linux-${FRPS_ARCH}"
-echo "下载地址: $AGENT_URL"
-echo -e "${YELLOW}正在连接主控服务...${NC}"
-if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_URL" 2>&1; then
+AGENT_VERSION="v1.0.0"
+AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}"
+AGENT_MIRROR="https://gitproxy.ake.cx/${AGENT_URL}"
+
+echo "下载地址: $AGENT_MIRROR"
+echo -e "${YELLOW}正在连接...${NC}"
+if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_MIRROR" 2>&1; then
   echo -e "${GREEN}Agent 下载完成${NC}"
 else
-  echo -e "${RED}下载 Agent 失败${NC}"
-  echo "提示：请检查主控服务是否正常运行，以及节点服务器是否能访问外网"
-  exit 1
+  echo -e "${YELLOW}代理下载失败，尝试直连 GitHub...${NC}"
+  if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_URL" 2>&1; then
+    echo -e "${GREEN}Agent 下载完成${NC}"
+  else
+    echo -e "${RED}下载 Agent 失败${NC}"
+    echo -e "${YELLOW}提示: 请确保 Agent 已编译并上传到 GitHub Releases${NC}"
+    echo "  Releases 页面: https://github.com/AKEXZ/JumpFrp/releases"
+    exit 1
+  fi
 fi
 chmod +x $INSTALL_DIR/agent
 echo -e "${GREEN}Agent 已安装${NC}"
