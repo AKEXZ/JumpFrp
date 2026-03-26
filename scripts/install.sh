@@ -39,6 +39,15 @@ fi
 echo -e "${GREEN}=== JumpFrp 节点安装程序 ===${NC}"
 echo "节点标识: $NODE_ID"
 echo "主控地址: $MASTER_URL"
+echo "frps 端口: $FRPS_PORT"
+echo "Agent 端口: $AGENT_PORT"
+echo ""
+echo -e "${YELLOW}安装步骤:${NC}"
+echo "  [1/5] 下载 frps 服务端"
+echo "  [2/5] 下载 JumpFrp Agent"
+echo "  [3/5] 创建配置文件"
+echo "  [4/5] 创建系统服务"
+echo "  [5/5] 启动服务并注册"
 echo ""
 
 # 检查系统
@@ -83,13 +92,20 @@ fi
 FRPS_URL="https://github.com/fatedier/frp/releases/download/v${FRPS_VERSION}/frp_${FRPS_VERSION}_linux_${FRPS_ARCH}.tar.gz"
 FRPS_MIRROR="https://gitproxy.ake.cx/${FRPS_URL}"
 
-# 尝试下载
-if ! wget -q --timeout=30 -O /tmp/frp.tar.gz "$FRPS_URL" 2>/dev/null; then
-  echo "尝试镜像下载..."
-  wget -q --timeout=60 -O /tmp/frp.tar.gz "$FRPS_MIRROR" || {
-    echo -e "${RED}下载 frps 失败${NC}"
+# 尝试下载（优先使用代理）
+echo "下载地址: $FRPS_MIRROR"
+echo -e "${YELLOW}正在连接...${NC}"
+if wget --progress=bar:force --timeout=60 -O /tmp/frp.tar.gz "$FRPS_MIRROR" 2>&1; then
+  echo -e "${GREEN}frps 下载完成${NC}"
+else
+  echo -e "${YELLOW}代理下载失败，尝试直连 GitHub...${NC}"
+  if wget --progress=bar:force --timeout=60 -O /tmp/frp.tar.gz "$FRPS_URL" 2>&1; then
+    echo -e "${GREEN}frps 下载完成${NC}"
+  else
+    echo -e "${RED}下载 frps 失败，请检查网络连接${NC}"
+    echo "提示：如果在中国大陆，请确保代理可用或手动下载后上传到服务器"
     exit 1
-  }
+  fi
 fi
 
 tar -xzf /tmp/frp.tar.gz -C /tmp/
@@ -98,17 +114,17 @@ chmod +x $INSTALL_DIR/frps
 rm -rf /tmp/frp_*
 echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
-# 下载 Agent
+# 下载 Agent（从主控下载，不用代理）
 echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
 AGENT_URL="${MASTER_URL}/download/agent-linux-${FRPS_ARCH}"
-AGENT_MIRROR="https://gitproxy.ake.cx/${AGENT_URL}"
-
-if ! wget -q --timeout=30 -O $INSTALL_DIR/agent "$AGENT_URL" 2>/dev/null; then
-  echo "尝试镜像下载..."
-  wget -q --timeout=60 -O $INSTALL_DIR/agent "$AGENT_MIRROR" || {
-    echo -e "${RED}下载 Agent 失败${NC}"
-    exit 1
-  }
+echo "下载地址: $AGENT_URL"
+echo -e "${YELLOW}正在连接主控服务...${NC}"
+if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_URL" 2>&1; then
+  echo -e "${GREEN}Agent 下载完成${NC}"
+else
+  echo -e "${RED}下载 Agent 失败${NC}"
+  echo "提示：请检查主控服务是否正常运行，以及节点服务器是否能访问外网"
+  exit 1
 fi
 chmod +x $INSTALL_DIR/agent
 echo -e "${GREEN}Agent 已安装${NC}"
@@ -187,32 +203,53 @@ EOF
 # 启动服务
 echo -e "${GREEN}[5/5] 启动服务...${NC}"
 systemctl daemon-reload
-systemctl enable frps jumpfrp-agent
-systemctl start frps jumpfrp-agent
+systemctl enable frps jumpfrp-agent 2>/dev/null
 
-# 检查状态
-sleep 2
-if systemctl is-active --quiet frps; then
-  echo -e "${GREEN}frps 服务运行正常${NC}"
+echo -e "${YELLOW}正在启动 frps...${NC}"
+if systemctl start frps; then
+  sleep 2
+  if systemctl is-active --quiet frps; then
+    echo -e "${GREEN}✓ frps 服务运行正常 (端口 $FRPS_PORT)${NC}"
+  else
+    echo -e "${RED}✗ frps 服务启动失败${NC}"
+    echo "  查看错误: journalctl -u frps -n 20 --no-pager"
+  fi
 else
-  echo -e "${RED}frps 服务启动失败，请检查日志: journalctl -u frps${NC}"
+  echo -e "${RED}✗ frps 启动命令执行失败${NC}"
 fi
 
-if systemctl is-active --quiet jumpfrp-agent; then
-  echo -e "${GREEN}Agent 服务运行正常${NC}"
+echo -e "${YELLOW}正在启动 Agent...${NC}"
+if systemctl start jumpfrp-agent; then
+  sleep 2
+  if systemctl is-active --quiet jumpfrp-agent; then
+    echo -e "${GREEN}✓ Agent 服务运行正常${NC}"
+    echo -e "${YELLOW}  正在向主控注册节点，请稍候...${NC}"
+    sleep 3
+  else
+    echo -e "${RED}✗ Agent 服务启动失败${NC}"
+    echo "  查看错误: journalctl -u jumpfrp-agent -n 20 --no-pager"
+  fi
 else
-  echo -e "${RED}Agent 服务启动失败，请检查日志: journalctl -u jumpfrp-agent${NC}"
+  echo -e "${RED}✗ Agent 启动命令执行失败${NC}"
 fi
 
 echo ""
-echo -e "${GREEN}=== 安装完成 ===${NC}"
-echo "安装目录: $INSTALL_DIR"
-echo "frps 端口: $FRPS_PORT"
-echo "Agent 端口: $AGENT_PORT"
+echo -e "${GREEN}══════════════════════════════════════${NC}"
+echo -e "${GREEN}        安装完成${NC}"
+echo -e "${GREEN}══════════════════════════════════════${NC}"
+echo ""
+echo "安装信息:"
+echo "  ├─ 安装目录: $INSTALL_DIR"
+echo "  ├─ frps 端口: $FRPS_PORT"
+echo "  ├─ Agent 端口: $AGENT_PORT"
+echo "  └─ 节点标识: $NODE_ID"
 echo ""
 echo "常用命令:"
-echo "  查看 frps 状态: systemctl status frps"
-echo "  查看 Agent 状态: systemctl status jumpfrp-agent"
-echo "  查看日志: journalctl -u frps -f"
+echo "  ├─ 查看状态: systemctl status frps jumpfrp-agent"
+echo "  ├─ 查看日志: journalctl -u frps -u jumpfrp-agent -f"
+echo "  └─ 重启服务: systemctl restart frps jumpfrp-agent"
 echo ""
-echo -e "${YELLOW}请前往管理后台确认节点已上线${NC}"
+echo -e "${YELLOW}提示: 请前往管理后台确认节点状态已变为「在线」${NC}"
+echo -e "${YELLOW}如果显示离线，请检查: ${NC}"
+echo "  1. 服务器防火墙是否开放端口 $FRPS_PORT 和 $AGENT_PORT"
+echo "  2. 运行 'journalctl -u jumpfrp-agent -n 50' 查看详细错误"
