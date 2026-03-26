@@ -1,6 +1,6 @@
 # JumpFrp — 内网穿透托管平台 项目规划方案
 
-> 版本：v1.4（完成版 + 部署指南）
+> 版本：v1.5
 > 日期：2026-03-26
 > 状态：✅ 全部完成
 
@@ -31,7 +31,7 @@
            │ API 通信               │ API 通信
 ┌──────────▼──────────┐  ┌─────────▼──────────────────────┐
 │   节点服务器 A       │  │   节点服务器 B / C / ...        │
-│  frps (官方版)       │  │  frps (官方版)                  │
+│  frps 0.61.0        │  │  frps 0.61.0                    │
 │  jumpfrp-agent      │  │  jumpfrp-agent                  │
 │  Ubuntu + systemd   │  │  Ubuntu + systemd               │
 └─────────────────────┘  └────────────────────────────────┘
@@ -80,7 +80,7 @@
 | 首页 | 产品介绍、套餐展示、快速开始 |
 | 注册/登录 | 邮箱注册（验证码）、用户名或邮箱登录、找回密码 |
 | 控制台 | 隧道概览、VIP 状态、快速操作 |
-| 隧道管理 | 创建/删除隧道、下载 frpc 配置、使用教程 |
+| 隧道管理 | 创建/编辑/删除隧道、绑定节点、绑定子域名、下载 frpc 配置、使用教程 |
 | VIP 中心 | 套餐对比、当前权益、订单记录 |
 | 个人设置 | 修改密码 |
 
@@ -89,19 +89,21 @@
 | 页面 | 功能 |
 |------|------|
 | 仪表盘 | 用户数、节点数、隧道数、VIP 分布图、节点在线率 |
-| 用户管理 | 列表搜索、**手动添加用户**、设置 VIP、重置密码、封禁/解封 |
-| 节点管理 | 添加/**编辑**/删除节点、生成安装命令、实时监控（CPU/内存/连接数） |
+| 用户管理 | 列表搜索、手动添加用户、设置 VIP、重置密码、封禁/解封 |
+| 节点管理 | 添加/编辑/删除节点、**安装命令**、**卸载命令**、实时监控（CPU/内存/连接数） |
 | 隧道管理 | 全局隧道列表、强制删除 |
 | VIP 订单 | 订单列表（按状态筛选）、手动开通 VIP |
-| 系统设置 | **SMTP 邮件配置**（后台可视化）、站点配置、开放注册开关 |
+| 系统设置 | SMTP 邮件配置（后台可视化）、站点配置、开放注册开关 |
 
 ### 5.3 节点服务器管理
+
+节点操作按钮：**编辑 | 安装 | 卸载 | 删除**
 
 节点信息字段（完整）：
 
 | 字段 | 说明 |
 |------|------|
-| 节点名称 / 标识 | 显示名 + 唯一 slug |
+| 节点名称 / 标识 | 显示名 + 唯一 slug（必填，创建后不可修改） |
 | IP 地址 / 地区 | 公网 IP + 所在地区 |
 | frps 端口 / Agent 端口 | 默认 7000 / 7500 |
 | Agent Token | 主控与节点通信密钥（自动生成） |
@@ -111,11 +113,11 @@
 | 带宽上限 / 最大连接数 | 节点容量限制 |
 | 节点状态 | 在线 / 离线 / 维护（可手动设置） |
 | 实时监控 | CPU / 内存 / 当前连接数 / 最后心跳时间 |
-| 安装状态 | 是否已安装 Agent |
 | 备注 | 内部备注 |
 
-### 5.4 一键安装脚本
+### 5.4 一键安装 / 卸载脚本
 
+**安装**（从管理后台复制命令）：
 ```bash
 bash <(wget -qO- https://api.jumpfrp.top/install.sh) \
   --node-id sh-01 \
@@ -125,13 +127,18 @@ bash <(wget -qO- https://api.jumpfrp.top/install.sh) \
   --agent-port 7500
 ```
 
-脚本执行内容：
-1. 检测系统（Ubuntu 20.04+）
-2. 下载 frps 官方二进制（支持 amd64 / arm64）
-3. 下载 jumpfrp-agent 二进制
-4. 写入配置文件
+**卸载**：
+```bash
+bash <(wget -qO- https://api.jumpfrp.top/uninstall.sh)
+```
+
+脚本安装内容：
+1. 检测系统（Ubuntu 20.04+）及架构（amd64 / arm64）
+2. 通过 `gitproxy.ake.cx` 代理下载 frps 0.61.0（显示下载进度）
+3. 从 GitHub Releases 下载 jumpfrp-agent 二进制
+4. 生成 `frps.toml` 配置文件（TOML 格式，frp 0.61.0+）
 5. 注册 systemd 服务（`frps.service` + `jumpfrp-agent.service`）
-6. 启动服务并回调主控注册
+6. 启动服务并显示状态，提示防火墙端口开放
 
 ---
 
@@ -155,45 +162,28 @@ system_configs -- 系统配置表（KV 存储，含 SMTP / 站点配置）
 ```
 JumpFrp/
 ├── master/                    # 主控服务 (Go)
-│   ├── cmd/server/main.go     # 入口
-│   ├── config/                # 配置加载
+│   ├── cmd/server/main.go
+│   ├── config/
 │   ├── internal/
-│   │   ├── api/
-│   │   │   ├── admin/         # 管理员 API（用户/节点/隧道/VIP/设置）
-│   │   │   └── user/          # 用户 API（认证/隧道/VIP）
+│   │   ├── api/admin/         # 用户/节点/隧道/VIP/设置
+│   │   ├── api/user/          # 认证/隧道/VIP
 │   │   ├── middleware/        # JWT / 限流 / 安全头 / CORS
 │   │   ├── model/             # 数据模型
-│   │   ├── scheduler/         # 定时任务（节点离线检测/VIP到期提醒）
-│   │   └── service/           # 业务逻辑（auth/tunnel/vip/mail/system）
-│   └── web/                   # 前端构建产物（生产环境嵌入）
-│
+│   │   ├── scheduler/         # 定时任务
+│   │   └── service/           # auth/tunnel/vip/mail/system
+│   └── web/                   # 前端构建产物
 ├── agent/                     # 节点 Agent (Go)
-│   ├── cmd/main.go
-│   └── internal/
-│       ├── agent/             # 主逻辑（心跳/注册）
-│       ├── api/               # HTTP API（状态查询/frps重启）
-│       ├── frps/              # frps 进程管理
-│       └── monitor/           # CPU/内存采集
-│
 ├── frontend/                  # 前端 (Vue 3)
-│   └── src/
-│       ├── views/
-│       │   ├── user/          # 前台页面（首页/登录/注册/控制台/隧道/VIP）
-│       │   └── admin/         # 后台页面（仪表盘/用户/节点/隧道/订单/设置）
-│       ├── stores/            # Pinia 状态管理
-│       ├── api/               # API 请求封装
-│       └── router/            # 路由（含权限守卫）
-│
+│   └── src/views/
+│       ├── user/              # 首页/登录/注册/控制台/隧道/VIP
+│       └── admin/             # 仪表盘/用户/节点/隧道/订单/设置
 ├── scripts/
-│   ├── install.sh             # 节点一键安装脚本
-│   └── uninstall.sh           # 节点卸载脚本
-│
-├── docs/
-│   └── deployment.md          # 完整部署文档
-│
-├── Dockerfile                 # 多阶段构建（含前端构建）
-├── fly.toml                   # Fly.io 部署配置
-├── dev.sh                     # 本地开发启动脚本
+│   ├── install.sh             # 节点一键安装（含进度显示）
+│   └── uninstall.sh           # 节点卸载
+├── docs/deployment.md
+├── Dockerfile                 # 多阶段构建（Node + Go + Alpine）
+├── fly.toml
+├── dev.sh
 └── README.md
 ```
 
@@ -217,8 +207,8 @@ JumpFrp/
 
 | 组件 | 部署位置 | 说明 |
 |------|---------|------|
-| 主控服务 | Fly.io（免费） | SQLite 持久化 Volume |
-| 前端 | 嵌入主控服务 | 静态文件由 Go 服务托管 |
+| 主控服务 | Fly.io（免费） | SQLite 持久化 Volume，sin 区域 |
+| 前端 | 嵌入主控服务 | 静态文件由 Go 服务托管，SPA fallback |
 | 节点服务器 | Ubuntu VPS | 一键安装脚本部署 |
 
 **域名配置：**
@@ -234,96 +224,123 @@ JumpFrp/
 
 | 坑 | 原因 | 解决方案 |
 |----|------|---------|
-| **SQLite CGO 报错** | `gorm.io/driver/sqlite` 依赖 `go-sqlite3`，需要 CGO，Alpine 镜像没有 gcc | 换成 `github.com/glebarez/sqlite`（纯 Go 实现，无需 CGO） |
-| **前端 404** | Dockerfile 没有复制前端构建产物 | 使用多阶段构建，Node 阶段构建前端，复制到最终镜像 |
-| **API 请求 localhost** | 生产环境用了开发环境的 API 地址 | 创建 `.env.production` 设置 `VITE_API_URL=/api`，使用相对路径 |
-| **健康检查超时** | 自定义 health check 配置太严格 | 删除 `[checks]` 配置，使用 `[http_service]` 默认检查 |
-| **hkg 区域废弃** | Fly.io 已弃用香港区域 | 改用 `sin`（新加坡）或其他可用区域 |
-| **构建超时** | Fly.io Depot builder 网络抖动 | 重试 `fly deploy` 或加 `--builder local` |
+| SQLite CGO 报错 | `gorm.io/driver/sqlite` 依赖 CGO，Alpine 无 gcc | 换 `github.com/glebarez/sqlite`（纯 Go） |
+| 前端 404 | Dockerfile 未复制前端产物 | 多阶段构建，Node 阶段构建前端 |
+| API 请求 localhost | 生产环境用了开发 API 地址 | `.env.production` 设置 `VITE_API_URL=/api` |
+| 健康检查超时 | 自定义 check 配置太严格 | 删除 `[checks]`，用 `[http_service]` 默认检查 |
+| hkg 区域废弃 | Fly.io 已弃用香港区域 | 改用 `sin`（新加坡） |
+| 构建超时 | Depot builder 网络抖动 | 重试或加 `--builder local` |
+| go.mod 版本冲突 | 本地 Go 1.25+，Docker 镜像 Go 1.22 | Dockerfile 改用 `golang:1.24-alpine` |
+| fly.toml 格式错误 | `[[http_service]]` 应为 `[http_service]` | 改为单括号 |
 
-### 10.2 部署前检查清单
-
-- [ ] `fly.toml` 中 `primary_region` 不是 `hkg`（已废弃）
-- [ ] `Dockerfile` 包含前端构建阶段（Node + Go 多阶段）
-- [ ] `frontend/.env.production` 存在且 `VITE_API_URL=/api`
-- [ ] 已创建 Volume：`fly volumes create jumpfrp_data --size 1 --region <region>`
-- [ ] 已设置 JWT_SECRET：`fly secrets set JWT_SECRET="<随机字符串>"`
-- [ ] 代码已推送到 GitHub
-
-### 10.3 完整部署命令
+### 10.2 完整部署命令
 
 ```bash
-# 1. 登录
 fly auth login
-
-# 2. 创建 app（如果还没创建）
 fly apps create jumpfrp
-
-# 3. 创建 Volume（数据持久化）
 fly volumes create jumpfrp_data --size 1 --region sin --app jumpfrp
-
-# 4. 设置环境变量
 fly secrets set JWT_SECRET="$(openssl rand -base64 48)" --app jumpfrp
 fly secrets set GIN_MODE="release" --app jumpfrp
-
-# 5. 部署
 fly deploy --app jumpfrp
-
-# 6. 验证
 curl https://jumpfrp.fly.dev/health
 ```
 
+### 10.3 部署前检查清单
+
+- [ ] `fly.toml` 中 `primary_region = "sin"`（不是 hkg）
+- [ ] `Dockerfile` 包含 Node + Go 多阶段构建
+- [ ] `frontend/.env.production` 存在且 `VITE_API_URL=/api`
+- [ ] 已创建 Volume
+- [ ] 已设置 JWT_SECRET
+
 ---
 
-## 十一、开发注意事项
+## 十一、节点安装注意事项（重要）
 
-### 11.1 本地开发
+### 11.1 已踩过的坑
+
+| 坑 | 原因 | 解决方案 |
+|----|------|---------|
+| frps 启动失败 | frp 0.61.0 改用 TOML 格式，旧 INI 不兼容 | 生成 `frps.toml`，字段名全部更新 |
+| Agent Exec format error | 主控 `/download/agent` 返回 HTML 而非二进制 | 从 GitHub Releases 下载正确二进制 |
+| GitHub 下载卡住 | 节点服务器无法直连 GitHub | 优先使用 `gitproxy.ake.cx` 代理 |
+| node-id 为空 | 创建节点时未填写 slug | 后端自动生成，前端标注必填 |
+| install.sh 参数解析错误 | `--node-id` 后面没有值 | 创建节点时 slug 必填，命令才完整 |
+
+### 11.2 frps.toml 配置格式（frp 0.61.0+）
+
+```toml
+bindPort = 7000
+auth.method = "token"
+auth.token = "your-token"
+
+webServer.addr = "0.0.0.0"
+webServer.port = 7001
+webServer.user = "admin"
+webServer.password = "jumpfrp-dashboard"
+
+log.to = "/var/log/frps.log"
+log.level = "info"
+log.maxDays = 3
+```
+
+> ⚠️ frp 0.52 以前用 INI 格式（`[common]`），0.52+ 改为 TOML，两者不兼容
+
+### 11.3 Agent 发布流程
+
+每次更新 Agent 代码后需重新编译并上传到 GitHub Releases：
+
+```bash
+cd agent
+export PATH="/opt/homebrew/bin:$PATH"
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o jumpfrp-agent-linux-amd64 ./cmd/main.go
+GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o jumpfrp-agent-linux-arm64 ./cmd/main.go
+```
+
+上传到：https://github.com/AKEXZ/JumpFrp/releases/tag/v1.0.0
+
+---
+
+## 十二、开发注意事项
+
+### 12.1 本地开发
 
 ```bash
 bash dev.sh
-```
-- 前端：`http://localhost:5173`
-- 后端：`http://localhost:8080`
-- 自动使用 `.env.development` 中的 `VITE_API_URL=http://localhost:8080/api`
-
-### 11.2 生产环境 API 路径
-
-前端代码中区分开发和生产：
-```typescript
-const isDev = import.meta.env.DEV
-const baseURL = isDev ? 'http://localhost:8080/api' : '/api'
+# 前端: http://localhost:5173
+# 后端: http://localhost:8080
 ```
 
-### 11.3 SQLite 驱动选择
+### 12.2 SQLite 驱动
 
-| 驱动 | CGO | Fly.io 兼容 | 说明 |
-|------|-----|------------|------|
-| `gorm.io/driver/sqlite` | 需要 | ❌ | 底层 `go-sqlite3`，需要 gcc |
-| `github.com/glebarez/sqlite` | 不需要 | ✅ | **推荐**，纯 Go 实现 |
+| 驱动 | CGO | Fly.io | 说明 |
+|------|-----|--------|------|
+| `gorm.io/driver/sqlite` | 需要 | ❌ | 底层 go-sqlite3，需要 gcc |
+| `github.com/glebarez/sqlite` | 不需要 | ✅ | **当前使用**，纯 Go |
 
 ---
 
-## 十二、已确认配置
+## 十三、已确认配置
 
 | 项目 | 决定 |
 |------|------|
-| 平台名称 | **JumpFrp** |
-| 域名 | `jumpfrp.top` |
-| 主控部署 | **Fly.io**（永久免费） |
+| 平台名称 | JumpFrp |
+| 域名 | jumpfrp.top |
+| 主控部署 | Fly.io（sin 区域） |
+| frps 版本 | 0.61.0（TOML 配置） |
 | VIP 付费 | 管理员手动开通（预留支付接口） |
 | 邮件通知 | SMTP（后台可视化配置） |
-| 子域名 | `*.jumpfrp.top`（通配符证书） |
-| 开发顺序 | Phase 1 → 2 → 3 → 4 → 5 ✅ |
+| GitHub 代理 | gitproxy.ake.cx |
 
 ---
 
-## 十三、开发进度
+## 十四、开发进度
 
-- [x] **Phase 1** — 基础框架（后端骨架、用户认证、前端框架、管理后台基础页面）
-- [x] **Phase 2** — 节点管理（Agent、一键安装脚本、心跳监控、节点离线检测）
-- [x] **Phase 3** — 隧道核心（端口分配、VIP 权限校验、隧道管理、frpc 配置生成）
-- [x] **Phase 4** — VIP 系统（套餐展示、手动开通、订单管理）
-- [x] **Phase 5** — 完善优化（邮件通知、流量统计、安全加固、部署文档）
-- [x] **补丁** — 节点编辑功能、管理员手动添加用户、重置密码、SMTP 后台配置、Fly.io 部署修复
-
-*方案文件路径：`/Users/doting/Documents/Code/JumpFrp/PROJECT.md`*
+- [x] Phase 1 — 基础框架
+- [x] Phase 2 — 节点管理（Agent、一键安装、心跳监控）
+- [x] Phase 3 — 隧道核心（端口分配、VIP 权限、frpc 配置生成）
+- [x] Phase 4 — VIP 系统
+- [x] Phase 5 — 完善优化（邮件、流量统计、安全加固）
+- [x] 补丁 — 节点编辑/卸载命令、手动添加用户、SMTP 后台配置
+- [x] 部署 — Fly.io 上线，修复所有部署问题
+- [ ] **待完成** — 编译 Agent 并上传 GitHub Releases v1.0.0
