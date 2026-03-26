@@ -80,12 +80,20 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// 安装脚本下载
+	// 安装/卸载脚本下载
 	r.GET("/install.sh", func(c *gin.Context) {
 		c.File("./scripts/install.sh")
 	})
 	r.GET("/uninstall.sh", func(c *gin.Context) {
 		c.File("./scripts/uninstall.sh")
+	})
+
+	// Agent 二进制下载（由管理员上传到 agent/ 目录）
+	r.GET("/download/agent-linux-amd64", func(c *gin.Context) {
+		c.File("./agent/jumpfrp-agent-linux-amd64")
+	})
+	r.GET("/download/agent-linux-arm64", func(c *gin.Context) {
+		c.File("./agent/jumpfrp-agent-linux-arm64")
 	})
 
 	// 前端静态文件（生产环境）

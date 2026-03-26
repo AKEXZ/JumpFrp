@@ -114,26 +114,26 @@ chmod +x $INSTALL_DIR/frps
 rm -rf /tmp/frp_*
 echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
-# 下载 Agent（需要先编译并上传到 GitHub Releases）
+# 下载 Agent（从主控下载）
 echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
-AGENT_VERSION="v1.0.0"
-AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}"
-AGENT_MIRROR="https://gitproxy.ake.cx/${AGENT_URL}"
+AGENT_URL="${MASTER_URL}/download/agent-linux-${FRPS_ARCH}"
 
-echo "下载地址: $AGENT_MIRROR"
-echo -e "${YELLOW}正在连接...${NC}"
-if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_MIRROR" 2>&1; then
-  echo -e "${GREEN}Agent 下载完成${NC}"
-else
-  echo -e "${YELLOW}代理下载失败，尝试直连 GitHub...${NC}"
-  if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_URL" 2>&1; then
+echo "下载地址: $AGENT_URL"
+echo -e "${YELLOW}正在连接主控...${NC}"
+if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/agent "$AGENT_URL" 2>&1; then
+  # 验证是否为有效的 ELF 可执行文件
+  if file $INSTALL_DIR/agent | grep -q "ELF"; then
     echo -e "${GREEN}Agent 下载完成${NC}"
   else
-    echo -e "${RED}下载 Agent 失败${NC}"
-    echo -e "${YELLOW}提示: 请确保 Agent 已编译并上传到 GitHub Releases${NC}"
-    echo "  Releases 页面: https://github.com/AKEXZ/JumpFrp/releases"
+    echo -e "${RED}Agent 下载失败：文件格式不正确${NC}"
+    echo "提示：请确认 Agent 已上传到主控服务"
+    rm -f $INSTALL_DIR/agent
     exit 1
   fi
+else
+  echo -e "${RED}下载 Agent 失败${NC}"
+  echo "提示：请检查主控服务是否正常运行"
+  exit 1
 fi
 chmod +x $INSTALL_DIR/agent
 echo -e "${GREEN}Agent 已安装${NC}"
