@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -51,11 +53,24 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 	}
 
 	// 验证邮箱验证码（从 system_configs 表读取）
+	// 格式: "code|expire_timestamp"
 	key := "verify_code_" + input.Email
 	var cfg model.SystemConfig
 	result := s.db.Where("key = ?", key).First(&cfg)
-	if result.Error != nil || cfg.Value != input.Code {
+	if result.Error != nil {
 		return nil, errors.New("验证码无效或已过期")
+	}
+	
+	// 解析验证码和过期时间
+	parts := strings.Split(cfg.Value, "|")
+	if len(parts) != 2 || parts[0] != input.Code {
+		return nil, errors.New("验证码无效或已过期")
+	}
+	
+	// 检查是否过期
+	expireTs, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || time.Now().Unix() > expireTs {
+		return nil, errors.New("验证码已过期")
 	}
 
 	// 创建用户
@@ -125,22 +140,22 @@ func (s *AuthService) SendVerifyCode(email string) error {
 	code := fmt.Sprintf("%06d", randomInt(999999))
 	expire := time.Now().Add(5 * time.Minute)
 
-	// 存储验证码到临时表或缓存（不创建用户）
-	// 这里使用 system_configs 表存储临时验证码
+	// 存储验证码到 system_configs 表，格式: "code|expire_timestamp"
+	// 不创建用户，避免测试邮件误创建用户
 	key := "verify_code_" + email
-	s.db.Model(&model.SystemConfig{}).
-		Where("key = ?", key).
-		Update("value", code).
-		Update("updated_at", time.Now())
+	value := fmt.Sprintf("%s|%d", code, expire.Unix())
 	
-	// 如果没有记录，创建新的
-	var count int64
-	s.db.Model(&model.SystemConfig{}).Where("key = ?", key).Count(&count)
-	if count == 0 {
+	var cfg model.SystemConfig
+	result := s.db.Where("key = ?", key).First(&cfg)
+	if result.Error != nil {
+		// 创建新记录
 		s.db.Create(&model.SystemConfig{
 			Key:   key,
-			Value: code,
+			Value: value,
 		})
+	} else {
+		// 更新已有记录
+		s.db.Model(&cfg).Update("value", value)
 	}
 
 	fmt.Printf("[DEBUG] 验证码: %s -> %s (5分钟有效)\n", email, code)
