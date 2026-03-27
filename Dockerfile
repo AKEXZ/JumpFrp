@@ -22,7 +22,6 @@ WORKDIR /app
 COPY --from=backend-builder /app/jumpfrp-master .
 COPY --from=frontend-builder /app/dist ./web
 COPY scripts/ ./scripts/
-COPY agent/ ./agent/
 RUN mkdir -p /data
 EXPOSE 8080
 CMD ["./jumpfrp-master"]
