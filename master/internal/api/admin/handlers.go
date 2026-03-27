@@ -135,6 +135,27 @@ func deleteNode(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
+func deleteUser(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		// 不允许删除管理员
+		var user model.User
+		if err := db.First(&user, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "用户不存在"})
+			return
+		}
+		if user.Username == "admin" {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "不能删除管理员账号"})
+			return
+		}
+		// 删除用户的所有隧道
+		db.Where("user_id = ?", id).Delete(&model.Tunnel{})
+		// 删除用户
+		db.Delete(&model.User{}, id)
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "删除成功"})
+	}
+}
+
 func getInstallCmd(db *gorm.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.Param("id")

@@ -51,6 +51,7 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 		auth.PUT("/users/:id/vip", setUserVIP(db))
 		auth.PUT("/users/:id/ban", banUser(db))
 		auth.PUT("/users/:id/password", resetUserPassword(db))
+		auth.DELETE("/users/:id", deleteUser(db))
 
 		// 节点管理
 		auth.GET("/nodes", listNodes(db))

@@ -43,15 +43,16 @@
           <span style="font-size:12px">{{ row.created_at?.slice(0,10) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="primary" plain @click="openVIP(row)">设置VIP</el-button>
           <el-button size="small" @click="openResetPwd(row)">重置密码</el-button>
           <el-button size="small"
-            :type="row.status === 'active' ? 'danger' : 'success'"
+            :type="row.status === 'active' ? 'warning' : 'success'"
             @click="toggleBan(row)">
             {{ row.status === 'active' ? '封禁' : '解封' }}
           </el-button>
+          <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -240,6 +241,13 @@ async function toggleBan(user: any) {
   const ban = user.status === 'active'
   await adminApi.banUser(user.id, ban)
   ElMessage.success(ban ? '已封禁' : '已解封')
+  loadUsers()
+}
+
+async function handleDelete(user: any) {
+  await ElMessageBox.confirm(`确定删除用户 "${user.username}"？此操作不可恢复。`, '警告', { type: 'warning' })
+  await adminApi.deleteUser(user.id)
+  ElMessage.success('用户已删除')
   loadUsers()
 }
 

@@ -56,6 +56,7 @@ export const adminApi = {
   setVIP: (id: number, data: any) => api.put(`/admin/users/${id}/vip`, data),
   banUser: (id: number, ban: boolean) => api.put(`/admin/users/${id}/ban`, { ban }),
   resetUserPassword: (id: number, password: string) => api.put(`/admin/users/${id}/password`, { password }),
+  deleteUser: (id: number) => api.delete(`/admin/users/${id}`),
   listNodes: () => api.get('/admin/nodes'),
   createNode: (data: any) => api.post('/admin/nodes', data),
   updateNode: (id: number, data: any) => api.put(`/admin/nodes/${id}`, data),
