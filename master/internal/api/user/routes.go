@@ -3,6 +3,7 @@ package user
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jumpfrp/master/config"
@@ -191,5 +192,100 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 		c.Header("Content-Type", "text/plain")
 		c.Header("Content-Disposition", "attachment; filename=frpc.ini")
 		c.String(http.StatusOK, cfg)
+	})
+
+	// ── 域名管理 ──────────────────────────────────────────
+	// 我的域名列表
+	auth.GET("/subdomains", func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		var subdomains []model.Subdomain
+		db.Where("user_id = ?", userID).Order("created_at DESC").Find(&subdomains)
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": subdomains})
+	})
+
+	// 申请域名
+	auth.POST("/subdomains", func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		var req struct {
+			TunnelID  uint   `json:"tunnel_id" binding:"required"`
+			Subdomain string `json:"subdomain" binding:"required,min=3,max=50"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+
+		// 检查用户 VIP 等级（Pro+ 才能申请自定义域名）
+		var user model.User
+		db.First(&user, userID)
+		if user.VIPLevel < 2 {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "需要 Pro 或以上 VIP 等级才能申请自定义域名"})
+			return
+		}
+
+		// 检查隧道是否属于当前用户
+		var tunnel model.Tunnel
+		if err := db.First(&tunnel, req.TunnelID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "隧道不存在"})
+			return
+		}
+		if tunnel.UserID != userID.(uint) {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "无权操作此隧道"})
+			return
+		}
+
+		// 检查协议是否为 http/https
+		if tunnel.Protocol != "http" && tunnel.Protocol != "https" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "仅支持 HTTP/HTTPS 隧道绑定域名"})
+			return
+		}
+
+		// 检查域名是否已存在
+		var count int64
+		db.Model(&model.Subdomain{}).Where("subdomain = ?", req.Subdomain).Count(&count)
+		if count > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "域名已被占用"})
+			return
+		}
+
+		// 创建申请（自动审批）
+		subdomain := model.Subdomain{
+			UserID:    userID.(uint),
+			TunnelID:  req.TunnelID,
+			Subdomain: req.Subdomain,
+			Status:    "approved",
+			CreatedAt: time.Now(),
+		}
+		if err := db.Create(&subdomain).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error()})
+			return
+		}
+
+		// 更新隧道的子域名
+		db.Model(&tunnel).Update("subdomain", req.Subdomain)
+
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "域名绑定成功", "data": subdomain})
+	})
+
+	// 删除域名
+	auth.DELETE("/subdomains/:id", func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		subdomainID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+
+		var subdomain model.Subdomain
+		if err := db.First(&subdomain, subdomainID).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "域名不存在"})
+			return
+		}
+		if subdomain.UserID != userID.(uint) {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "无权操作"})
+			return
+		}
+
+		// 清除隧道的子域名
+		db.Model(&model.Tunnel{}).Where("id = ?", subdomain.TunnelID).Update("subdomain", "")
+
+		db.Delete(&subdomain)
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "删除成功"})
 	})
 }
