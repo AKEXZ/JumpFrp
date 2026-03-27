@@ -49,16 +49,16 @@
     <!-- 创建 / 编辑节点对话框 -->
     <el-dialog v-model="formVisible" :title="isEdit ? '编辑节点' : '添加节点'" width="620px">
       <el-form :model="nodeForm" label-width="120px">
-        <el-form-item label="节点名称">
+        <el-form-item label="节点名称" required>
           <el-input v-model="nodeForm.name" placeholder="如：上海节点01" />
         </el-form-item>
         <el-form-item label="节点标识" required>
           <el-input v-model="nodeForm.slug" placeholder="必填，唯一标识，如：sh-01、hz-01（创建后不可修改）" :disabled="isEdit" />
         </el-form-item>
-        <el-form-item label="IP地址">
+        <el-form-item label="IP地址" required>
           <el-input v-model="nodeForm.ip" placeholder="公网 IP" />
         </el-form-item>
-        <el-form-item label="地区">
+        <el-form-item label="地区" required>
           <el-input v-model="nodeForm.region" placeholder="如：中国·上海" />
         </el-form-item>
         <el-row :gutter="12">
@@ -207,6 +207,24 @@ function openEdit(row: any) {
 }
 
 async function handleSave() {
+  // 验证必填字段
+  if (!nodeForm.value.name) {
+    ElMessage.warning('请输入节点名称')
+    return
+  }
+  if (!nodeForm.value.slug) {
+    ElMessage.warning('请输入节点标识')
+    return
+  }
+  if (!nodeForm.value.ip) {
+    ElMessage.warning('请输入 IP 地址')
+    return
+  }
+  if (!nodeForm.value.region) {
+    ElMessage.warning('请输入地区')
+    return
+  }
+
   saving.value = true
   try {
     if (isEdit.value && editId.value) {

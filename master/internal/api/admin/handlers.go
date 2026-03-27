@@ -94,6 +94,21 @@ func createNode(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
 			return
 		}
+
+		// 验证必填字段
+		if node.Name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "节点名称不能为空"})
+			return
+		}
+		if node.IP == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "IP 地址不能为空"})
+			return
+		}
+		if node.Region == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "地区不能为空"})
+			return
+		}
+
 		node.AgentToken = newToken(32)
 		node.Status = model.NodeStatusOffline
 
