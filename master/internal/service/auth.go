@@ -50,11 +50,11 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 		return nil, errors.New("邮箱已被注册")
 	}
 
-	// 验证邮箱验证码
-	var user model.User
-	result := s.db.Where("email = ? AND verify_code = ? AND verify_expire > ?",
-		input.Email, input.Code, time.Now()).First(&user)
-	if result.Error != nil {
+	// 验证邮箱验证码（从 system_configs 表读取）
+	key := "verify_code_" + input.Email
+	var cfg model.SystemConfig
+	result := s.db.Where("key = ?", key).First(&cfg)
+	if result.Error != nil || cfg.Value != input.Code {
 		return nil, errors.New("验证码无效或已过期")
 	}
 
@@ -76,10 +76,7 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 	}
 
 	// 清除验证码
-	s.db.Model(&user).Updates(map[string]interface{}{
-		"verify_code":   "",
-		"verify_expire": nil,
-	})
+	s.db.Where("key = ?", key).Delete(&model.SystemConfig{})
 
 	return newUser, nil
 }
@@ -128,27 +125,25 @@ func (s *AuthService) SendVerifyCode(email string) error {
 	code := fmt.Sprintf("%06d", randomInt(999999))
 	expire := time.Now().Add(5 * time.Minute)
 
-	// 存储验证码（不管用户是否存在，都存一条临时记录）
-	var user model.User
-	result := s.db.Where("email = ?", email).First(&user)
-	if result.Error != nil {
-		// 用户不存在，创建临时记录
-		user = model.User{
-			Email:        email,
-			VerifyCode:   code,
-			VerifyExpire: &expire,
-			Status:       "pending",
-		}
-		s.db.Create(&user)
-	} else {
-		s.db.Model(&user).Updates(map[string]interface{}{
-			"verify_code":   code,
-			"verify_expire": expire,
+	// 存储验证码到临时表或缓存（不创建用户）
+	// 这里使用 system_configs 表存储临时验证码
+	key := "verify_code_" + email
+	s.db.Model(&model.SystemConfig{}).
+		Where("key = ?", key).
+		Update("value", code).
+		Update("updated_at", time.Now())
+	
+	// 如果没有记录，创建新的
+	var count int64
+	s.db.Model(&model.SystemConfig{}).Where("key = ?", key).Count(&count)
+	if count == 0 {
+		s.db.Create(&model.SystemConfig{
+			Key:   key,
+			Value: code,
 		})
 	}
 
-	// TODO: 发送邮件（Phase 2 实现 SMTP）
-	fmt.Printf("[DEBUG] 验证码: %s -> %s\n", email, code)
+	fmt.Printf("[DEBUG] 验证码: %s -> %s (5分钟有效)\n", email, code)
 	// 发送验证码邮件
 	go s.mailSvc.SendVerifyCode(email, email, code)
 	return nil

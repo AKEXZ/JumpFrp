@@ -60,7 +60,11 @@ func testSMTP(sysSvc *service.SystemService, db interface{}) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
 			return
 		}
-		err := mailSvc.SendVerifyCode(req.Email, "管理员", "123456")
+		// 直接发送测试邮件，不调用 SendVerifyCode（避免创建用户）
+		err := mailSvc.Send(req.Email, "【JumpFrp】SMTP 测试邮件", service.MailData{
+			Username: "测试用户",
+			Content:  "这是一封测试邮件，用于验证 SMTP 配置是否正确。如果您收到此邮件，说明配置成功！",
+		})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "发送失败: " + err.Error()})
 			return
