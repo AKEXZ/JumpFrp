@@ -19,6 +19,10 @@
           <el-icon><Connection /></el-icon>
           <span>隧道管理</span>
         </el-menu-item>
+        <el-menu-item index="/admin/subdomains">
+          <el-icon><Link /></el-icon>
+          <span>域名管理</span>
+        </el-menu-item>
         <el-menu-item index="/admin/orders">
           <el-icon><CreditCard /></el-icon>
           <span>VIP订单</span>

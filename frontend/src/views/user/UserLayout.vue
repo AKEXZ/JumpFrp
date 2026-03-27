@@ -5,6 +5,7 @@
       <div class="nav-links">
         <router-link to="/dashboard">控制台</router-link>
         <router-link to="/tunnels">我的隧道</router-link>
+        <router-link to="/subdomains">我的域名</router-link>
         <router-link to="/vip">VIP 中心</router-link>
       </div>
       <div class="nav-user">

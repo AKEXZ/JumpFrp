@@ -35,6 +35,14 @@ const router = createRouter({
       ],
     },
     {
+      path: '/subdomains',
+      component: () => import('../views/user/UserLayout.vue'),
+      meta: { requiresAuth: true },
+      children: [
+        { path: '', component: () => import('../views/user/SubdomainsView.vue') },
+      ],
+    },
+    {
       path: '/vip',
       component: () => import('../views/user/UserLayout.vue'),
       meta: { requiresAuth: true },
@@ -53,6 +61,7 @@ const router = createRouter({
         { path: 'users', component: () => import('../views/admin/UsersView.vue') },
         { path: 'nodes', component: () => import('../views/admin/NodesView.vue') },
         { path: 'tunnels', component: () => import('../views/admin/TunnelsView.vue') },
+        { path: 'subdomains', component: () => import('../views/admin/SubdomainsView.vue') },
         { path: 'orders', component: () => import('../views/admin/OrdersView.vue') },
         { path: 'settings', component: () => import('../views/admin/SettingsView.vue') },
       ],

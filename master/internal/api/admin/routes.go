@@ -68,6 +68,12 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 		auth.GET("/orders", listOrders(db))
 		auth.POST("/vip/grant", adminGrantVIP(db))
 
+		// 域名管理
+		auth.GET("/subdomains", listSubdomains(db))
+		auth.POST("/subdomains", createSubdomain(db))
+		auth.PUT("/subdomains/:id/approve", approveSubdomain(db))
+		auth.DELETE("/subdomains/:id", deleteSubdomain(db))
+
 		// 系统设置
 		RegisterSettingsRoutes(auth, db, sysSvc)
 	}

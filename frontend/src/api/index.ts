@@ -43,6 +43,10 @@ export const userApi = {
       responseType: 'text',
       transformResponse: [(data) => data],
     }).then((res: any) => res.data),
+  // 域名
+  listSubdomains: () => api.get('/user/subdomains'),
+  createSubdomain: (data: any) => api.post('/user/subdomains', data),
+  deleteSubdomain: (id: number) => api.delete(`/user/subdomains/${id}`),
   getVIPPlans: () => api.get('/user/vip/plans'),
   getVIPInfo: () => api.get('/user/vip/info'),
   getVIPOrders: () => api.get('/user/vip/orders'),
@@ -70,4 +74,9 @@ export const adminApi = {
   saveSmtp: (data: any) => api.post('/admin/settings/smtp', data),
   saveSite: (data: any) => api.post('/admin/settings/site', data),
   testSmtp: (email: string) => api.post('/admin/settings/smtp/test', { email }),
+  // 域名管理
+  listSubdomains: (status?: string) => api.get('/admin/subdomains', { params: { status } }),
+  createSubdomain: (data: any) => api.post('/admin/subdomains', data),
+  approveSubdomain: (id: number, approve: boolean) => api.put(`/admin/subdomains/${id}/approve`, { approve }),
+  deleteSubdomain: (id: number) => api.delete(`/admin/subdomains/${id}`),
 }
