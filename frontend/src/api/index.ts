@@ -35,6 +35,7 @@ export const userApi = {
   profile: () => api.get('/user/profile'),
   updatePassword: (data: any) => api.put('/user/password', data),
   listNodes: () => api.get('/user/nodes'),
+  listAvailableNodes: () => api.get('/user/available-nodes'),
   listTunnels: () => api.get('/user/tunnels'),
   createTunnel: (data: any) => api.post('/user/tunnels', data),
   deleteTunnel: (id: number) => api.delete(`/user/tunnels/${id}`),

@@ -167,7 +167,7 @@ const form = ref({
 async function loadData() {
   const [tunnelRes, nodeRes]: any[] = await Promise.all([
     userApi.listTunnels(),
-    userApi.listNodes(),
+    userApi.listAvailableNodes(),
   ])
   tunnels.value = tunnelRes.data
   nodes.value = nodeRes.data

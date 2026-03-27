@@ -52,8 +52,9 @@
         <el-form-item label="节点名称" required>
           <el-input v-model="nodeForm.name" placeholder="如：上海节点01" />
         </el-form-item>
-        <el-form-item label="节点标识" required>
-          <el-input v-model="nodeForm.slug" placeholder="必填，唯一标识，如：sh-01、hz-01（创建后不可修改）" :disabled="isEdit" />
+        <el-form-item label="节点标识">
+          <el-input v-model="nodeForm.slug" :disabled="true" placeholder="自动生成" />
+          <div style="font-size:12px;color:#999;margin-top:4px">创建后自动生成，无需手动输入</div>
         </el-form-item>
         <el-form-item label="IP地址" required>
           <el-input v-model="nodeForm.ip" placeholder="公网 IP" />
@@ -210,10 +211,6 @@ async function handleSave() {
   // 验证必填字段
   if (!nodeForm.value.name) {
     ElMessage.warning('请输入节点名称')
-    return
-  }
-  if (!nodeForm.value.slug) {
-    ElMessage.warning('请输入节点标识')
     return
   }
   if (!nodeForm.value.ip) {

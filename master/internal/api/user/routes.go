@@ -66,16 +66,26 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 
 	// 可用节点列表（公开，用于前台展示）
 	rg.GET("/nodes", func(c *gin.Context) {
-		nodes := make([]model.Node, 0) // 初始化为空切片，避免 JSON 序列化为 null
-		// 返回所有节点（包括离线的），便于测试
-		db.Select("id,name,slug,ip,region,frps_port,min_vip_level,status,current_conns,max_connections").
-			Order("id ASC").
-			Find(&nodes)
+		nodes := make([]model.Node, 0)
+		// 返回所有节点，前端根据用户 VIP 等级过滤
+		db.Find(&nodes)
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": nodes})
 	})
 
 	// ── 需要登录的路由 ─────────────────────────────────────
 	auth := rg.Group("", middleware.JWTAuth(cfg))
+
+	// 可用节点列表（需要登录，根据 VIP 等级过滤）
+	auth.GET("/available-nodes", func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		var user model.User
+		db.First(&user, userID)
+
+		nodes := make([]model.Node, 0)
+		// 只返回满足用户 VIP 等级的节点
+		db.Where("min_vip_level <= ?", user.VIPLevel).Find(&nodes)
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": nodes})
+	})
 
 	// 个人信息
 	auth.GET("/profile", func(c *gin.Context) {
