@@ -66,8 +66,10 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 	// 可用节点列表（公开，用于前台展示）
 	rg.GET("/nodes", func(c *gin.Context) {
 		var nodes []model.Node
-		db.Where("status != ?", model.NodeStatusOffline).
+		// 返回在线和维护状态的节点（不返回离线节点）
+		db.Where("status IN ?", []string{model.NodeStatusOnline, model.NodeStatusMaintain}).
 			Select("id,name,slug,ip,region,frps_port,min_vip_level,status,current_conns,max_connections").
+			Order("id ASC").
 			Find(&nodes)
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": nodes})
 	})
