@@ -211,8 +211,8 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
 			return
 		}
-		c.Header("Content-Type", "text/plain")
-		c.Header("Content-Disposition", "attachment; filename=frpc.ini")
+		c.Header("Content-Type", "text/plain; charset=utf-8")
+		c.Header("Content-Disposition", "attachment; filename=frpc.toml")
 		c.String(http.StatusOK, cfg)
 	})
 

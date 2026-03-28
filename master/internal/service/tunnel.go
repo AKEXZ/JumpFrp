@@ -196,7 +196,7 @@ func (s *TunnelService) Delete(userID, tunnelID uint) error {
 	return s.db.Delete(&tunnel).Error
 }
 
-// 生成 frpc 配置文件内容
+// 生成 frpc 配置文件内容 (TOML 格式，frp 0.61.0+)
 func (s *TunnelService) GenFrpcConfig(tunnelID uint) (string, error) {
 	var tunnel model.Tunnel
 	if err := s.db.Preload("Node").Preload("User").First(&tunnel, tunnelID).Error; err != nil {
@@ -204,33 +204,42 @@ func (s *TunnelService) GenFrpcConfig(tunnelID uint) (string, error) {
 	}
 
 	var cfg strings.Builder
-	cfg.WriteString("[common]\n")
-	cfg.WriteString(fmt.Sprintf("server_addr = %s\n", tunnel.Node.IP))
-	cfg.WriteString(fmt.Sprintf("server_port = %d\n", tunnel.Node.FrpsPort))
-	cfg.WriteString(fmt.Sprintf("token = %s\n\n", tunnel.User.APIToken))
 
-	cfg.WriteString(fmt.Sprintf("[%s]\n", tunnel.Name))
-	cfg.WriteString(fmt.Sprintf("type = %s\n", tunnel.Protocol))
-	cfg.WriteString(fmt.Sprintf("local_ip = %s\n", tunnel.LocalIP))
+	// common 部分
+	cfg.WriteString("[common]\n")
+	cfg.WriteString(fmt.Sprintf("server_addr = \"%s\"\n", tunnel.Node.IP))
+	cfg.WriteString(fmt.Sprintf("server_port = %d\n", tunnel.Node.FrpsPort))
+	cfg.WriteString(fmt.Sprintf("auth.method = \"token\"\n"))
+	cfg.WriteString(fmt.Sprintf("auth.token = \"%s\"\n", tunnel.User.APIToken))
+	cfg.WriteString(fmt.Sprintf("pool_count = 10\n"))
+	cfg.WriteString(fmt.Sprintf("transport.tcp_mux = true\n"))
+	cfg.WriteString(fmt.Sprintf("transport.protocol = \"%s\"\n\n", tunnel.Protocol))
+
+	// 隧道部分
+	sectionName := tunnel.Name
+	if len(sectionName) > 50 {
+		sectionName = sectionName[:50]
+	}
+	cfg.WriteString(fmt.Sprintf("[[proxies]]\n"))
+	cfg.WriteString(fmt.Sprintf("name = \"%s\"\n", sectionName))
+	cfg.WriteString(fmt.Sprintf("type = \"%s\"\n", tunnel.Protocol))
+	cfg.WriteString(fmt.Sprintf("local_ip = \"%s\"\n", tunnel.LocalIP))
 	cfg.WriteString(fmt.Sprintf("local_port = %d\n", tunnel.LocalPort))
 
 	switch tunnel.Protocol {
 	case "tcp", "udp":
 		cfg.WriteString(fmt.Sprintf("remote_port = %d\n", tunnel.RemotePort))
-	case "http":
+	case "http", "https":
 		if tunnel.Subdomain != "" {
-			cfg.WriteString(fmt.Sprintf("subdomain = %s\n", tunnel.Subdomain))
+			cfg.WriteString(fmt.Sprintf("subdomain = \"%s\"\n", tunnel.Subdomain))
 		} else {
 			cfg.WriteString(fmt.Sprintf("remote_port = %d\n", tunnel.RemotePort))
 		}
-	case "https":
-		if tunnel.Subdomain != "" {
-			cfg.WriteString(fmt.Sprintf("subdomain = %s\n", tunnel.Subdomain))
-		}
 	}
 
+	// 带宽限制
 	if tunnel.BandwidthLimit > 0 {
-		cfg.WriteString(fmt.Sprintf("bandwidth_limit = %dMB\n", tunnel.BandwidthLimit))
+		cfg.WriteString(fmt.Sprintf("bandwidth_limit = \"%dMB\"\n", tunnel.BandwidthLimit))
 	}
 
 	return cfg.String(), nil

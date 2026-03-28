@@ -202,12 +202,16 @@ async function handleDelete(t: any) {
 }
 
 async function downloadConfig(t: any) {
-  const res = await userApi.getFrpcConfig(t.id)
-  const blob = new Blob([res as string], { type: 'text/plain' })
+  const token = localStorage.getItem('token')
+  const res = await fetch(`/api/user/tunnels/${t.id}/frpc-config`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  })
+  const text = await res.text()
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `frpc-${t.name}.ini`
+  a.download = `frpc-${t.name}.toml`
   a.click()
   URL.revokeObjectURL(url)
 }
