@@ -136,6 +136,12 @@ func (s *AuthService) Login(input LoginInput) (string, *model.User, error) {
 }
 
 func (s *AuthService) SendVerifyCode(email string) error {
+	// 检查 SMTP 是否已配置
+	smtpConfig := s.mailSvc.GetSMTPConfig()
+	if smtpConfig.Host == "" || smtpConfig.User == "" {
+		return errors.New("邮件服务未配置，请联系管理员")
+	}
+
 	// 生成 6 位验证码
 	code := fmt.Sprintf("%06d", randomInt(999999))
 	expire := time.Now().Add(5 * time.Minute)

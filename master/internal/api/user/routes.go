@@ -3,6 +3,7 @@ package user
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -23,20 +24,32 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 			Email string `json:"email" binding:"required,email"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "请输入正确的邮箱地址"})
 			return
 		}
 		if err := authSvc.SendVerifyCode(req.Email); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "验证码已发送"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "验证码已发送，请查收邮件"})
 	})
 
 	rg.POST("/auth/register", func(c *gin.Context) {
 		var input service.RegisterInput
 		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			// 解析验证错误，返回友好提示
+			errMsg := err.Error()
+			if strings.Contains(errMsg, "Username") {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "用户名为必填项，长度3-20位"})
+			} else if strings.Contains(errMsg, "Email") {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "请输入正确的邮箱地址"})
+			} else if strings.Contains(errMsg, "Password") {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "密码为必填项，至少8位字符"})
+			} else if strings.Contains(errMsg, "Code") {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "请输入6位验证码"})
+			} else {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "请填写完整的注册信息"})
+			}
 			return
 		}
 		user, err := authSvc.Register(input)

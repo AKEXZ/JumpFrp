@@ -17,6 +17,11 @@ func NewMailService(sysSvc *SystemService) *MailService {
 	return &MailService{sysSvc: sysSvc}
 }
 
+// GetSMTPConfig 获取 SMTP 配置
+func (m *MailService) GetSMTPConfig() SMTPConfig {
+	return m.sysSvc.GetSMTPConfig()
+}
+
 type MailData struct {
 	Username   string
 	Content    template.HTML
