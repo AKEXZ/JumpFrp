@@ -16,6 +16,7 @@ TOKEN=""
 MASTER_URL="https://api.jumpfrp.top"
 FRPS_PORT=7000
 AGENT_PORT=7500
+USE_PROXY=false
 
 # 解析参数
 while [[ $# -gt 0 ]]; do
@@ -25,6 +26,9 @@ while [[ $# -gt 0 ]]; do
     --master-url) MASTER_URL="$2"; shift 2 ;;
     --frps-port) FRPS_PORT="$2"; shift 2 ;;
     --agent-port) AGENT_PORT="$2"; shift 2 ;;
+    --proxy) USE_PROXY="$2"; shift 2 ;;
+    --use-proxy) USE_PROXY=true; shift ;;
+    --no-proxy) USE_PROXY=false; shift ;;
     *) echo "未知参数: $1"; exit 1 ;;
   esac
 done
@@ -33,6 +37,18 @@ done
 if [[ -z "$NODE_ID" || -z "$TOKEN" ]]; then
   echo -e "${RED}错误: 必须指定 --node-id 和 --token${NC}"
   echo "用法: bash install.sh --node-id <节点标识> --token <Token>"
+  echo ""
+  echo "可选参数:"
+  echo "  --master-url     主控地址 (默认: https://api.jumpfrp.top)"
+  echo "  --frps-port      frps 端口 (默认: 7000)"
+  echo "  --agent-port     Agent 端口 (默认: 7500)"
+  echo "  --proxy          是否使用代理下载 (true/false，默认: false)"
+  echo "  --use-proxy      等同于 --proxy true"
+  echo "  --no-proxy       等同于 --proxy false"
+  echo ""
+  echo "示例:"
+  echo "  bash install.sh --node-id sh-01 --token xxx"
+  echo "  bash install.sh --node-id sh-01 --token xxx --proxy true"
   exit 1
 fi
 
@@ -41,6 +57,7 @@ echo "节点标识: $NODE_ID"
 echo "主控地址: $MASTER_URL"
 echo "frps 端口: $FRPS_PORT"
 echo "Agent 端口: $AGENT_PORT"
+echo "使用代理: $USE_PROXY"
 echo ""
 echo -e "${YELLOW}安装步骤:${NC}"
 echo "  [1/5] 下载 frps 服务端"
@@ -90,20 +107,31 @@ else
 fi
 
 FRPS_URL="https://github.com/fatedier/frp/releases/download/v${FRPS_VERSION}/frp_${FRPS_VERSION}_linux_${FRPS_ARCH}.tar.gz"
-FRPS_MIRROR="https://gitproxy.ake.cx/${FRPS_URL}"
 
-# 尝试下载（优先使用代理）
-echo "下载地址: $FRPS_MIRROR"
+# 根据是否使用代理选择下载地址
+if [[ "$USE_PROXY" == "true" ]]; then
+  FRPS_URL="https://gitproxy.ake.cx/${FRPS_URL}"
+  echo "使用代理下载，下载地址: $FRPS_URL"
+else
+  echo "直连 GitHub 下载，下载地址: $FRPS_URL"
+fi
+
 echo -e "${YELLOW}正在连接...${NC}"
-if wget --progress=bar:force --timeout=60 -O /tmp/frp.tar.gz "$FRPS_MIRROR" 2>&1; then
+if wget --progress=bar:force --timeout=60 -O /tmp/frp.tar.gz "$FRPS_URL" 2>&1; then
   echo -e "${GREEN}frps 下载完成${NC}"
 else
-  echo -e "${YELLOW}代理下载失败，尝试直连 GitHub...${NC}"
-  if wget --progress=bar:force --timeout=60 -O /tmp/frp.tar.gz "$FRPS_URL" 2>&1; then
-    echo -e "${GREEN}frps 下载完成${NC}"
+  # 如果直连失败，且未使用代理，尝试使用代理
+  if [[ "$USE_PROXY" != "true" ]]; then
+    echo -e "${YELLOW}直连失败，尝试使用代理下载...${NC}"
+    PROXY_URL="https://gitproxy.ake.cx/${FRPS_URL}"
+    if wget --progress=bar:force --timeout=60 -O /tmp/frp.tar.gz "$PROXY_URL" 2>&1; then
+      echo -e "${GREEN}frps 下载完成（通过代理）${NC}"
+    else
+      echo -e "${RED}下载 frps 失败${NC}"
+      exit 1
+    fi
   else
     echo -e "${RED}下载 frps 失败，请检查网络连接${NC}"
-    echo "提示：如果在中国大陆，请确保代理可用或手动下载后上传到服务器"
     exit 1
   fi
 fi
@@ -118,19 +146,31 @@ echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
 AGENT_VERSION="v1.0.0"
 AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}.gz"
-AGENT_MIRROR="https://gitproxy.ake.cx/${AGENT_URL}"
 
-echo "下载地址: $AGENT_MIRROR"
+# 根据是否使用代理选择下载地址
+if [[ "$USE_PROXY" == "true" ]]; then
+  AGENT_URL="https://gitproxy.ake.cx/${AGENT_URL}"
+  echo "使用代理下载，下载地址: $AGENT_URL"
+else
+  echo "直连 GitHub 下载，下载地址: $AGENT_URL"
+fi
+
 echo -e "${YELLOW}正在连接...${NC}"
-if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_MIRROR" 2>&1; then
+if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_URL" 2>&1; then
   echo -e "${GREEN}Agent 下载完成${NC}"
 else
-  echo -e "${YELLOW}代理下载失败，尝试直连 GitHub...${NC}"
-  if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_URL" 2>&1; then
-    echo -e "${GREEN}Agent 下载完成${NC}"
+  # 如果直连失败，且未使用代理，尝试使用代理
+  if [[ "$USE_PROXY" != "true" ]]; then
+    echo -e "${YELLOW}直连失败，尝试使用代理下载...${NC}"
+    PROXY_URL="https://gitproxy.ake.cx/https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}.gz"
+    if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$PROXY_URL" 2>&1; then
+      echo -e "${GREEN}Agent 下载完成（通过代理）${NC}"
+    else
+      echo -e "${RED}下载 Agent 失败${NC}"
+      exit 1
+    fi
   else
     echo -e "${RED}下载 Agent 失败${NC}"
-    echo "提示: 请确保 Agent 已上传到 GitHub Releases: https://github.com/AKEXZ/JumpFrp/releases"
     exit 1
   fi
 fi
