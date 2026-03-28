@@ -2,7 +2,12 @@
   <div class="tunnels-page">
     <div class="page-header">
       <h2>我的隧道</h2>
-      <el-button type="primary" @click="openCreate">+ 创建隧道</el-button>
+      <div style="display:flex;gap:8px">
+        <el-button :loading="loading" @click="loadData" circle title="刷新">
+          <span style="font-size:16px">🔄</span>
+        </el-button>
+        <el-button type="primary" @click="openCreate">+ 创建隧道</el-button>
+      </div>
     </div>
 
     <!-- 配额提示 -->
@@ -140,6 +145,7 @@ const nodes = ref<any[]>([])
 const createVisible = ref(false)
 const helpVisible = ref(false)
 const creating = ref(false)
+const loading = ref(false)
 const currentTunnel = ref<any>(null)
 
 const vipNames: Record<number, string> = { 0: 'Free', 1: 'Basic', 2: 'Pro', 3: 'Ultimate' }

@@ -177,3 +177,24 @@ func (m *MailService) SendVIPExpiring(to, username, vipName string, daysLeft int
 		ActionText: "立即续费",
 	})
 }
+
+// 发送 VIP 已过期通知邮件
+func (m *MailService) SendVIPExpired(to, username string) error {
+	content := `
+<p>您的 VIP 套餐已于今天到期，已自动降级为免费用户。</p>
+<p>影响说明：</p>
+<ul>
+<li>隧道数量限制为 1 条（超出部分仍保留但无法新建）</li>
+<li>带宽限制为 1 Mbps</li>
+<li>仅支持 TCP 协议</li>
+<li>不支持子域名绑定</li>
+</ul>
+<p>续费后立即恢复所有 VIP 功能。</p>`
+
+	return m.Send(to, "【JumpFrp】您的 VIP 已到期，已自动降级", MailData{
+		Username:   username,
+		Content:    template.HTML(content),
+		ActionURL:  "https://jumpfrp.top/vip",
+		ActionText: "立即续费",
+	})
+}

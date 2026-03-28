@@ -29,6 +29,7 @@ func New(db *gorm.DB, cfg *config.Config, sysSvc *service.SystemService) *Schedu
 func (s *Scheduler) Start() {
 	go s.nodeOfflineChecker()
 	go s.vipExpireChecker()
+	go s.vipExpiredDowngradeChecker() // VIP 过期降级检查
 	log.Println("定时任务已启动")
 }
 
@@ -79,5 +80,53 @@ func (s *Scheduler) vipExpireChecker() {
 		case <-s.stopCh:
 			return
 		}
+	}
+}
+
+// 检查 VIP 是否已过期，过期则降级用户 VIP 等级并降低隧道带宽
+func (s *Scheduler) vipExpiredDowngradeChecker() {
+	ticker := time.NewTicker(1 * time.Hour) // 每小时检查一次
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.processExpiredVIPs()
+		case <-s.stopCh:
+			return
+		}
+	}
+}
+
+func (s *Scheduler) processExpiredVIPs() {
+	now := time.Now()
+
+	// 查找已过期的 VIP 用户
+	var users []model.User
+	s.db.Where("vip_level > 0 AND vip_expire_at < ?", now).Find(&users)
+
+	for _, user := range users {
+		oldLevel := user.VIPLevel
+
+		// 降级到 Free
+		user.VIPLevel = model.VIPFree
+		user.VIPExpireAt = nil
+
+		// 更新用户 VIP 等级
+		if err := s.db.Select("VIPLevel", "VIPExpireAt").Updates(&user).Error; err != nil {
+			log.Printf("[VIP过期] 更新用户 %s VIP 等级失败: %v", user.Username, err)
+			continue
+		}
+
+		// 降低所有隧道的带宽到 Free 等级
+		freeBandwidth := 1 // Free 等级带宽 1Mbps
+		result := s.db.Model(&model.Tunnel{}).Where("user_id = ?", user.ID).Updates(map[string]interface{}{
+			"BandwidthLimit": freeBandwidth,
+		})
+
+		log.Printf("[VIP过期] 用户 %s VIP 已过期 (原等级: %d → Free)，已更新 %d 条隧道的带宽限制",
+			user.Username, oldLevel, result.RowsAffected)
+
+		// 发送通知邮件
+		go s.mailSvc.SendVIPExpired(user.Email, user.Username)
 	}
 }
