@@ -1,5 +1,7 @@
 .git
 agent/
+frontend/node_modules
 *.md
-node_modules
 .env*
+.DS_Store
+docs/
