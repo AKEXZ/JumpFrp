@@ -27,7 +27,7 @@ type User struct {
 	Username     string         `gorm:"uniqueIndex;size:50" json:"username"`
 	Email        string         `gorm:"uniqueIndex;size:100" json:"email"`
 	PasswordHash string         `gorm:"size:255" json:"-"`
-	VIPLevel     int            `gorm:"default:0" json:"vip_level"`
+	VIPLevel     int            `gorm:"column:vip_level;default:0" json:"vip_level"`
 	VIPExpireAt  *time.Time     `json:"vip_expire_at"`
 	APIToken     string         `gorm:"uniqueIndex;size:64" json:"api_token"`
 	Status       string         `gorm:"size:20;default:'active'" json:"status"`

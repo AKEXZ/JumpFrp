@@ -25,7 +25,7 @@ type Node struct {
 	PortRangeStart   int            `json:"port_range_start"`
 	PortRangeEnd     int            `json:"port_range_end"`
 	PortExcludes     string         `gorm:"size:500" json:"port_excludes"` // comma separated
-	MinVIPLevel      int            `gorm:"default:0" json:"min_vip_level"`
+	MinVIPLevel      int            `gorm:"column:min_vip_level;default:0" json:"min_vip_level"`
 	BandwidthLimit   int            `json:"bandwidth_limit"` // Mbps
 	MaxConnections   int            `json:"max_connections"`
 	Status           string         `gorm:"size:20;default:'offline'" json:"status"`
@@ -74,7 +74,7 @@ type Tunnel struct {
 type VIPOrder struct {
 	ID           uint           `gorm:"primarykey" json:"id"`
 	UserID       uint           `gorm:"index" json:"user_id"`
-	VIPLevel     int            `json:"vip_level"`
+	VIPLevel     int            `gorm:"column:vip_level" json:"vip_level"`
 	DurationDays int            `json:"duration_days"`
 	Price        float64        `json:"price"`
 	Status       string         `gorm:"size:20" json:"status"` // pending/paid/cancelled
