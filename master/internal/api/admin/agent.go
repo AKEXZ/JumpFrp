@@ -93,4 +93,27 @@ func agentHeartbeat(db *gorm.DB, sysSvc *service.SystemService) gin.HandlerFunc 
 func RegisterAgentRoutes(rg *gin.RouterGroup, db *gorm.DB, sysSvc *service.SystemService) {
 	rg.POST("/register", agentRegister(db, sysSvc))
 	rg.POST("/heartbeat", agentHeartbeat(db, sysSvc))
+	rg.POST("/get-user-vip", getUserVIPLevel(db))
+}
+
+// getUserVIPLevel 获取用户的 VIP 等级（Agent 查询用）
+func getUserVIPLevel(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Token string `json:"token" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+
+		// 通过用户的 API Token 查找用户
+		var user model.User
+		if err := db.Where("api_token = ?", req.Token).First(&user).Error; err != nil {
+			c.JSON(http.StatusOK, gin.H{"code": 0, "vip_level": 0})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"code": 0, "vip_level": user.VIPLevel})
+	}
 }

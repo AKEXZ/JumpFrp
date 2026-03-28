@@ -60,11 +60,12 @@ echo "Agent 端口: $AGENT_PORT"
 echo "使用代理: $USE_PROXY"
 echo ""
 echo -e "${YELLOW}安装步骤:${NC}"
-echo "  [1/5] 下载 frps 服务端"
-echo "  [2/5] 下载 JumpFrp Agent"
-echo "  [3/5] 创建配置文件"
-echo "  [4/5] 创建系统服务"
-echo "  [5/5] 启动服务并注册"
+echo "  [1/6] 检查系统依赖"
+echo "  [2/6] 下载 frps 服务端"
+echo "  [3/6] 下载 JumpFrp Agent"
+echo "  [4/6] 创建配置文件"
+echo "  [5/6] 创建系统服务"
+echo "  [6/6] 启动服务并注册"
 echo ""
 
 # 检查系统
@@ -89,12 +90,29 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
+# 检查必要依赖
+echo -e "${GREEN}[1/6] 检查系统依赖...${NC}"
+DEPS=""
+for cmd in tc iptables ip wget curl tar gunzip; do
+  if ! command -v $cmd &> /dev/null; then
+    DEPS="$DEPS $cmd"
+  fi
+done
+if [[ -n "$DEPS" ]]; then
+  echo -e "${YELLOW}缺少依赖: $DEPS${NC}"
+  echo -e "${YELLOW}正在安装...${NC}"
+  apt-get update && apt-get install -y$iproute2 iptables wget curl tar gzip 2>/dev/null || \
+  yum install -y iproute iptables wget curl tar gzip 2>/dev/null || \
+  echo -e "${RED}自动安装依赖失败，请手动安装: $DEPS${NC}"
+fi
+echo -e "${GREEN}依赖检查完成${NC}"
+
 # 安装目录
 INSTALL_DIR="/opt/jumpfrp"
 mkdir -p $INSTALL_DIR
 
 # 下载 frps（从 GitHub 或国内镜像）
-echo -e "${GREEN}[1/5] 下载 frps...${NC}"
+echo -e "${GREEN}[2/6] 下载 frps...${NC}"
 FRPS_VERSION="0.61.0"
 ARCH=$(uname -m)
 if [[ "$ARCH" == "x86_64" ]]; then
@@ -143,7 +161,7 @@ rm -rf /tmp/frp_*
 echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
 # 下载 Agent（从 GitHub Releases 下载）
-echo -e "${GREEN}[2/5] 下载 JumpFrp Agent...${NC}"
+echo -e "${GREEN}[3/6] 下载 JumpFrp Agent...${NC}"
 AGENT_VERSION="v1.0.0"
 AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}.gz"
 
@@ -193,7 +211,7 @@ else
 fi
 
 # 创建配置文件
-echo -e "${GREEN}[3/5] 创建配置文件...${NC}"
+echo -e "${GREEN}[4/6] 创建配置文件...${NC}"
 cat > $INSTALL_DIR/agent.env << EOF
 AGENT_NODE_ID=${NODE_ID}
 AGENT_TOKEN=${TOKEN}
@@ -223,7 +241,7 @@ EOF
 echo -e "${GREEN}配置文件已创建${NC}"
 
 # 创建 systemd 服务（Agent 会自动管理 frps，无需单独服务）
-echo -e "${GREEN}[4/5] 创建系统服务...${NC}"
+echo -e "${GREEN}[5/6] 创建系统服务...${NC}"
 
 # Agent 服务（Agent 会 fork frps 进程）
 cat > /etc/systemd/system/jumpfrp-agent.service << EOF
@@ -243,7 +261,7 @@ WantedBy=multi-user.target
 EOF
 
 # 启动服务
-echo -e "${GREEN}[5/5] 启动服务...${NC}"
+echo -e "${GREEN}[6/6] 启动服务...${NC}"
 systemctl daemon-reload
 systemctl enable jumpfrp-agent 2>/dev/null
 

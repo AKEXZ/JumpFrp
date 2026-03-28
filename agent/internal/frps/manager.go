@@ -1,14 +1,12 @@
 package frps
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync/atomic"
-	"text/template"
 	"time"
 )
 
