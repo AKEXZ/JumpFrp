@@ -38,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function validateToken() {
     if (!token.value) return false
     try {
-      const res = await api.get('/user/profile')
+      const res: any = await api.get('/user/profile')
       if (res.code === 0) {
         user.value = res.data
         localStorage.setItem('user', JSON.stringify(res.data))
