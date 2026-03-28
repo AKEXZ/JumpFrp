@@ -34,10 +34,28 @@ export const useAuthStore = defineStore('auth', () => {
     delete api.defaults.headers.common['Authorization']
   }
 
+  // 初始化时验证 token 有效性
+  async function validateToken() {
+    if (!token.value) return false
+    try {
+      const res = await api.get('/user/profile')
+      if (res.code === 0) {
+        user.value = res.data
+        localStorage.setItem('user', JSON.stringify(res.data))
+        return true
+      }
+    } catch (e: any) {
+      // token 无效，清除登录状态
+      console.warn('Token 无效，清除登录状态')
+    }
+    logout()
+    return false
+  }
+
   // 初始化时设置 token
   if (token.value) {
     api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
   }
 
-  return { token, user, isAdmin, isLoggedIn, setAuth, logout }
+  return { token, user, isAdmin, isLoggedIn, setAuth, logout, validateToken }
 })
