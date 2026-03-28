@@ -77,6 +77,15 @@ func (s *TunnelService) Create(userID uint, input CreateTunnelInput) (*model.Tun
 		return nil, errors.New("隧道名称已存在")
 	}
 
+	// 检查本地端口是否已被其他隧道占用（同一用户）
+	var localPortCount int64
+	s.db.Model(&model.Tunnel{}).
+		Where("user_id = ? AND local_ip = ? AND local_port = ?", userID, input.LocalIP, input.LocalPort).
+		Count(&localPortCount)
+	if localPortCount > 0 {
+		return nil, errors.New("本地端口已被其他隧道占用")
+	}
+
 	// 分配远程端口
 	remotePort, err := s.allocatePort(node, userID)
 	if err != nil {

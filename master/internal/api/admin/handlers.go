@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -55,6 +56,7 @@ func setUserVIP(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		oldLevel := user.VIPLevel
 		expire := time.Now().AddDate(0, 0, req.Days)
 		user.VIPLevel = req.VIPLevel
 		user.VIPExpireAt = &expire
@@ -65,8 +67,43 @@ func setUserVIP(db *gorm.DB) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": result.Error.Error()})
 			return
 		}
+
+		// 如果升级 VIP，自动调整现有隧道的带宽限制
+		if req.VIPLevel > oldLevel {
+			upgradeTunnelBandwidth(db, id, req.VIPLevel)
+		}
+
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "VIP 已设置"})
 	}
+}
+
+// upgradeTunnelBandwidth 升级用户所有隧道的带宽限制
+func upgradeTunnelBandwidth(db *gorm.DB, userID interface{}, newLevel int) {
+	// 获取新 VIP 等级的带宽限制
+	quota := getVIPQuota(newLevel)
+	newBandwidth := quota.MaxBandwidth
+
+	// 更新该用户所有隧道的带宽限制
+	result := db.Model(&model.Tunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+		"BandwidthLimit": newBandwidth,
+	})
+
+	log.Printf("[VIP] 用户 %v 升级至 VIP%d，批量更新 %d 条隧道的带宽限制为 %d",
+		userID, newLevel, result.RowsAffected, newBandwidth)
+}
+
+// getVIPQuota 获取 VIP 等级配置
+func getVIPQuota(level int) model.VIPQuota {
+	quotas := map[int]model.VIPQuota{
+		0: {MaxBandwidth: 1},   // Free: 1Mbps
+		1: {MaxBandwidth: 5},   // Basic: 5Mbps
+		2: {MaxBandwidth: 20},   // Pro: 20Mbps
+		3: {MaxBandwidth: 100}, // Ultimate: 100Mbps
+	}
+	if q, ok := quotas[level]; ok {
+		return q
+	}
+	return quotas[0]
 }
 
 func banUser(db *gorm.DB) gin.HandlerFunc {
