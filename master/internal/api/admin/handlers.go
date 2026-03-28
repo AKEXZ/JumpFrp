@@ -91,19 +91,18 @@ func setUserVIP(db *gorm.DB) gin.HandlerFunc {
 	}
 }
 
-// upgradeTunnelBandwidthAndEnable 升级用户所有隧道的带宽限制并开启
+// upgradeTunnelBandwidthAndEnable 升级用户所有隧道的带宽限制
 func upgradeTunnelBandwidthAndEnable(db *gorm.DB, userID interface{}, newLevel int) {
 	// 获取新 VIP 等级的带宽限制
 	quota := getVIPQuota(newLevel)
 	newBandwidth := quota.MaxBandwidth
 
-	// 更新该用户所有隧道的带宽限制并开启
+	// 只更新带宽，不自动开启隧道
 	result := db.Model(&model.Tunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
 		"BandwidthLimit": newBandwidth,
-		"Enabled":        true,
 	})
 
-	log.Printf("[VIP] 用户 %v 升级至 VIP%d，批量更新 %d 条隧道的带宽限制为 %d Mbps 并开启",
+	log.Printf("[VIP] 用户 %v 升级至 VIP%d，批量更新 %d 条隧道的带宽限制为 %d Mbps",
 		userID, newLevel, result.RowsAffected, newBandwidth)
 }
 
