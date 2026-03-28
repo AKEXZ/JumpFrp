@@ -41,6 +41,9 @@ func main() {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
 
+	// 修复可能缺失的列名（兼容旧数据库）
+	fixMissingColumns(db)
+
 	// 创建默认管理员
 	model.CreateDefaultAdmin(db)
 
@@ -104,4 +107,49 @@ func main() {
 	if err := r.Run(cfg.Server.Addr); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
+}
+
+// fixMissingColumns 修复可能缺失的列（兼容旧数据库）
+func fixMissingColumns(db *gorm.DB) {
+	// Users 表需要添加的列
+	userColumns := []struct {
+		column  string
+		colType string
+	}{
+		{"vip_level", "INTEGER DEFAULT 0"},
+		{"vip_expire_at", "TEXT"},
+		{"email_verified", "INTEGER DEFAULT 0"},
+		{"api_token", "TEXT"},
+		{"verify_code", "TEXT"},
+		{"verify_expire", "TEXT"},
+		{"reset_token", "TEXT"},
+		{"reset_expire", "TEXT"},
+	}
+	for _, col := range userColumns {
+		// 检查列是否存在
+		var count int64
+		db.Raw("SELECT COUNT(*) FROM pragma_table_info('users') WHERE name = ?", col.column).Scan(&count)
+		if count == 0 {
+			db.Exec("ALTER TABLE users ADD COLUMN " + col.column + " " + col.colType)
+			log.Printf("添加缺失列: users.%s", col.column)
+		}
+	}
+
+	// Nodes 表需要添加的列
+	nodeColumns := []struct {
+		column  string
+		colType string
+	}{
+		{"bandwidth_limit", "INTEGER DEFAULT 0"},
+	}
+	for _, col := range nodeColumns {
+		var count int64
+		db.Raw("SELECT COUNT(*) FROM pragma_table_info('nodes') WHERE name = ?", col.column).Scan(&count)
+		if count == 0 {
+			db.Exec("ALTER TABLE nodes ADD COLUMN " + col.column + " " + col.colType)
+			log.Printf("添加缺失列: nodes.%s", col.column)
+		}
+	}
+
+	log.Println("数据库列修复完成")
 }

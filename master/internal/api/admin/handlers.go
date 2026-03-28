@@ -49,11 +49,18 @@ func setUserVIP(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
+		var user model.User
+		if err := db.First(&user, id).Error; err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "用户不存在"})
+			return
+		}
+
 		expire := time.Now().AddDate(0, 0, req.Days)
-		result := db.Model(&model.User{}).Where("id = ?", id).Updates(map[string]interface{}{
-			"vip_level":     req.VIPLevel,
-			"vip_expire_at": expire,
-		})
+		user.VIPLevel = req.VIPLevel
+		user.VIPExpireAt = &expire
+
+		// 使用 GORM 的 Select 指定要更新的字段（使用模型字段名）
+		result := db.Select("VIPLevel", "VIPExpireAt").Updates(&user)
 		if result.Error != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": result.Error.Error()})
 			return

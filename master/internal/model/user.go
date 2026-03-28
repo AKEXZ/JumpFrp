@@ -28,14 +28,14 @@ type User struct {
 	Email        string         `gorm:"uniqueIndex;size:100" json:"email"`
 	PasswordHash string         `gorm:"size:255" json:"-"`
 	VIPLevel     int            `gorm:"column:vip_level;default:0" json:"vip_level"`
-	VIPExpireAt  *time.Time     `json:"vip_expire_at"`
+	VIPExpireAt  *time.Time    `gorm:"column:vip_expire_at" json:"vip_expire_at"`
 	APIToken     string         `gorm:"uniqueIndex;size:64" json:"api_token"`
 	Status       string         `gorm:"size:20;default:'active'" json:"status"`
-	EmailVerified bool          `gorm:"default:false" json:"email_verified"`
-	VerifyCode   string         `gorm:"size:10" json:"-"`
-	VerifyExpire *time.Time     `json:"-"`
-	ResetToken   string         `gorm:"size:64" json:"-"`
-	ResetExpire  *time.Time     `json:"-"`
+	EmailVerified bool          `gorm:"column:email_verified;default:false" json:"email_verified"`
+	VerifyCode   string         `gorm:"column:verify_code;size:10" json:"-"`
+	VerifyExpire *time.Time    `gorm:"column:verify_expire" json:"-"`
+	ResetToken   string         `gorm:"column:reset_token;size:64" json:"-"`
+	ResetExpire  *time.Time    `gorm:"column:reset_expire" json:"-"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
