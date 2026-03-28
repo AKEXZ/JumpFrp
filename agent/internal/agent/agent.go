@@ -6,11 +6,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/jumpfrp/agent/internal/frps"
 	"github.com/jumpfrp/agent/internal/monitor"
 	agentapi "github.com/jumpfrp/agent/internal/api"
+)
+
+const (
+	frpsConfigPath = "/opt/jumpfrp/frps.toml"
 )
 
 type Config struct {
@@ -22,11 +27,12 @@ type Config struct {
 }
 
 type Agent struct {
-	cfg        *Config
-	frpsMgr    *frps.Manager
-	monitor    *monitor.Monitor
-	httpServer *http.Server
-	stopCh     chan struct{}
+	cfg            *Config
+	frpsMgr        *frps.Manager
+	monitor        *monitor.Monitor
+	httpServer     *http.Server
+	stopCh         chan struct{}
+	configVersion  int
 }
 
 func New(cfg *Config) *Agent {
@@ -43,7 +49,7 @@ func (a *Agent) Start() error {
 	// 初始化 frps 管理器
 	a.frpsMgr = frps.NewManager(a.cfg.FrpsPort)
 
-	// 启动 frps
+	// 尝试从本地配置文件启动
 	if err := a.frpsMgr.Start(); err != nil {
 		log.Printf("[警告] frps 启动失败: %v (可能未安装)", err)
 	}
@@ -80,14 +86,18 @@ func (a *Agent) Stop() {
 	}
 }
 
-// 向主控注册节点
+// 向主控注册节点，并获取 frps.toml 配置
 func (a *Agent) register() {
 	for i := 0; i < 5; i++ {
-		err := a.callMaster("POST", "/api/agent/register", map[string]interface{}{
+		resp, err := a.callMasterWithResponse("POST", "/api/agent/register", map[string]interface{}{
 			"node_id": a.cfg.NodeID,
 			"token":   a.cfg.Token,
 		})
-		if err == nil {
+		if err == nil && resp != nil {
+			// 保存并应用 frps 配置
+			if resp.FrpsConfig != "" {
+				a.saveAndApplyFrpsConfig(resp.FrpsConfig)
+			}
 			log.Println("已向主控注册成功")
 			return
 		}
@@ -123,24 +133,55 @@ func (a *Agent) sendHeartbeat() {
 	}
 
 	payload := map[string]interface{}{
-		"node_id":      a.cfg.NodeID,
-		"token":        a.cfg.Token,
-		"cpu_usage":    stats.CPUUsage,
-		"memory_usage": stats.MemoryUsage,
+		"node_id":       a.cfg.NodeID,
+		"token":         a.cfg.Token,
+		"cpu_usage":     stats.CPUUsage,
+		"memory_usage":  stats.MemoryUsage,
 		"current_conns": conns,
-		"version":      "1.0.0",
+		"version":       "1.0.0",
 	}
 
-	if err := a.callMaster("POST", "/api/agent/heartbeat", payload); err != nil {
+	resp, err := a.callMasterWithResponse("POST", "/api/agent/heartbeat", payload)
+	if err != nil {
 		log.Printf("心跳上报失败: %v", err)
+		return
+	}
+
+	// 检查是否需要更新配置
+	if resp != nil && resp.FrpsConfig != "" {
+		a.saveAndApplyFrpsConfig(resp.FrpsConfig)
 	}
 }
 
-func (a *Agent) callMaster(method, path string, payload interface{}) error {
+// 保存并应用新的 frps.toml 配置
+func (a *Agent) saveAndApplyFrpsConfig(config string) bool {
+	// 写入配置文件
+	if err := os.WriteFile(frpsConfigPath, []byte(config), 0644); err != nil {
+		log.Printf("保存 frps.toml 失败: %v", err)
+		return false
+	}
+
+	log.Println("frps.toml 配置已更新，正在重启 frps...")
+
+	// 重启 frps
+	a.frpsMgr.Restart()
+
+	log.Println("frps 重启完成")
+	return true
+}
+
+type masterResponse struct {
+	Code        int    `json:"code"`
+	Msg         string `json:"msg"`
+	FrpsConfig  string `json:"frps_config"`
+	ConfigVersion int  `json:"config_version"`
+}
+
+func (a *Agent) callMasterWithResponse(method, path string, payload interface{}) (*masterResponse, error) {
 	body, _ := json.Marshal(payload)
 	req, err := http.NewRequest(method, a.cfg.MasterURL+path, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Agent-Token", a.cfg.Token)
@@ -148,12 +189,23 @@ func (a *Agent) callMaster(method, path string, payload interface{}) error {
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("主控返回 %d", resp.StatusCode)
+		return nil, fmt.Errorf("主控返回 %d", resp.StatusCode)
 	}
-	return nil
+
+	var result masterResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (a *Agent) callMaster(method, path string, payload interface{}) error {
+	_, err := a.callMasterWithResponse(method, path, payload)
+	return err
 }

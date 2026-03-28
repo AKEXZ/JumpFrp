@@ -6,11 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jumpfrp/master/internal/model"
+	"github.com/jumpfrp/master/internal/service"
 	"gorm.io/gorm"
 )
 
 // Agent 注册
-func agentRegister(db *gorm.DB) gin.HandlerFunc {
+func agentRegister(db *gorm.DB, sysSvc *service.SystemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			NodeID string `json:"node_id" binding:"required"`
@@ -34,12 +35,19 @@ func agentRegister(db *gorm.DB) gin.HandlerFunc {
 			"last_heartbeat": now,
 		})
 
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "注册成功"})
+		// 返回 frps.toml 配置
+		frpsConfig := sysSvc.GenerateFrpsConfig(&node)
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":        0,
+			"msg":         "注册成功",
+			"frps_config": frpsConfig,
+		})
 	}
 }
 
 // Agent 心跳
-func agentHeartbeat(db *gorm.DB) gin.HandlerFunc {
+func agentHeartbeat(db *gorm.DB, sysSvc *service.SystemService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req struct {
 			NodeID        string  `json:"node_id" binding:"required"`
@@ -48,6 +56,7 @@ func agentHeartbeat(db *gorm.DB) gin.HandlerFunc {
 			MemoryUsage   float64 `json:"memory_usage"`
 			CurrentConns  int     `json:"current_conns"`
 			Version       string  `json:"version"`
+			ConfigVersion int     `json:"config_version"` // 配置版本，变化时需要重新加载
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
@@ -70,12 +79,18 @@ func agentHeartbeat(db *gorm.DB) gin.HandlerFunc {
 			"version":        req.Version,
 		})
 
-		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "心跳已接收"})
+		// 返回心跳响应，包含是否需要更新配置
+		c.JSON(http.StatusOK, gin.H{
+			"code":           0,
+			"msg":            "心跳已接收",
+			"frps_config":    sysSvc.GenerateFrpsConfig(&node),
+			"config_version": 1, // 配置版本号
+		})
 	}
 }
 
 // 公开路由（不需要 JWT，但需要 Agent Token）
-func RegisterAgentRoutes(rg *gin.RouterGroup, db *gorm.DB) {
-	rg.POST("/register", agentRegister(db))
-	rg.POST("/heartbeat", agentHeartbeat(db))
+func RegisterAgentRoutes(rg *gin.RouterGroup, db *gorm.DB, sysSvc *service.SystemService) {
+	rg.POST("/register", agentRegister(db, sysSvc))
+	rg.POST("/heartbeat", agentHeartbeat(db, sysSvc))
 }

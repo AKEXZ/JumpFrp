@@ -72,7 +72,7 @@ func main() {
 		admin.RegisterRoutes(api.Group("/admin"), db, cfg, sysSvc)
 
 		// Agent 路由（节点心跳/注册，无需 JWT）
-		admin.RegisterAgentRoutes(api.Group("/agent"), db)
+		admin.RegisterAgentRoutes(api.Group("/agent"), db, sysSvc)
 	}
 
 	// 健康检查

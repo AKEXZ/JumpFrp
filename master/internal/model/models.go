@@ -26,7 +26,7 @@ type Node struct {
 	PortRangeEnd     int            `json:"port_range_end"`
 	PortExcludes     string         `gorm:"size:500" json:"port_excludes"` // comma separated
 	MinVIPLevel      int            `gorm:"column:min_vip_level;default:0" json:"min_vip_level"`
-	BandwidthLimit   int            `json:"bandwidth_limit"` // Mbps
+	BandwidthLimit   int            `gorm:"column:bandwidth_limit;default:0" json:"bandwidth_limit"` // Mbps, 0=不限速
 	MaxConnections   int            `json:"max_connections"`
 	Status           string         `gorm:"size:20;default:'offline'" json:"status"`
 	Version          string         `gorm:"size:20" json:"version"`

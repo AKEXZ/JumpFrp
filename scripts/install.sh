@@ -202,60 +202,39 @@ AGENT_PORT=${AGENT_PORT}
 FRPS_PORT=${FRPS_PORT}
 EOF
 
-# 创建 frps.toml 配置 (TOML格式，frp 0.61.0+)
+# 创建基础 frps.toml 配置（首次安装用，Agent 注册后会从主控获取完整配置）
 cat > $INSTALL_DIR/frps.toml << EOF
-# frps 服务端配置
+# frps.toml - JumpFrp 服务端配置
+# 此文件由 Agent 自动从主控获取，版本可能不同
 bindPort = ${FRPS_PORT}
 auth.method = "token"
 auth.token = "${TOKEN}"
 
-# Web 面板（可选）
-webServer.addr = "0.0.0.0"
-webServer.port = $((FRPS_PORT + 1))
-webServer.user = "admin"
-webServer.password = "jumpfrp-dashboard"
+[transport]
+max_pool_count = 100
+pool_count = 10
 
-# 日志
-log.to = "/var/log/frps.log"
-log.level = "info"
-log.maxDays = 3
-
-# 传输层安全（建议生产环境启用）
-# transport.tls.force = true
+[log]
+to = "/var/log/frps.log"
+level = "info"
+max_days = 3
 EOF
 
-echo -e "${GREEN}配置文件已创建 (TOML格式)${NC}"
+echo -e "${GREEN}配置文件已创建${NC}"
 
-# 创建 systemd 服务
+# 创建 systemd 服务（Agent 会自动管理 frps，无需单独服务）
 echo -e "${GREEN}[4/5] 创建系统服务...${NC}"
 
-# frps 服务
-cat > /etc/systemd/system/frps.service << 'EOF'
+# Agent 服务（Agent 会 fork frps 进程）
+cat > /etc/systemd/system/jumpfrp-agent.service << EOF
 [Unit]
-Description=JumpFrp Server
+Description=JumpFrp Agent
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/opt/jumpfrp/frps -c /opt/jumpfrp/frps.toml
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Agent 服务
-cat > /etc/systemd/system/jumpfrp-agent.service << EOF
-[Unit]
-Description=JumpFrp Agent
-After=network.target frps.service
-Requires=frps.service
-
-[Service]
-Type=simple
 EnvironmentFile=/opt/jumpfrp/agent.env
-ExecStart=/opt/jumpfrp/agent --node-id \${AGENT_NODE_ID} --token \${AGENT_TOKEN} --master-url \${AGENT_MASTER_URL} --frps-port \${FRPS_PORT} --agent-port \${AGENT_PORT}
+ExecStart=/opt/jumpfrp/agent
 Restart=always
 RestartSec=5
 
@@ -266,28 +245,15 @@ EOF
 # 启动服务
 echo -e "${GREEN}[5/5] 启动服务...${NC}"
 systemctl daemon-reload
-systemctl enable frps jumpfrp-agent 2>/dev/null
-
-echo -e "${YELLOW}正在启动 frps...${NC}"
-if systemctl start frps; then
-  sleep 2
-  if systemctl is-active --quiet frps; then
-    echo -e "${GREEN}✓ frps 服务运行正常 (端口 $FRPS_PORT)${NC}"
-  else
-    echo -e "${RED}✗ frps 服务启动失败${NC}"
-    echo "  查看错误: journalctl -u frps -n 20 --no-pager"
-  fi
-else
-  echo -e "${RED}✗ frps 启动命令执行失败${NC}"
-fi
+systemctl enable jumpfrp-agent 2>/dev/null
 
 echo -e "${YELLOW}正在启动 Agent...${NC}"
 if systemctl start jumpfrp-agent; then
   sleep 2
   if systemctl is-active --quiet jumpfrp-agent; then
     echo -e "${GREEN}✓ Agent 服务运行正常${NC}"
-    echo -e "${YELLOW}  正在向主控注册节点，请稍候...${NC}"
-    sleep 3
+    echo -e "${YELLOW}  正在向主控注册节点，获取 frps 配置...${NC}"
+    sleep 5
   else
     echo -e "${RED}✗ Agent 服务启动失败${NC}"
     echo "  查看错误: journalctl -u jumpfrp-agent -n 20 --no-pager"

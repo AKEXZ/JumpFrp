@@ -19,11 +19,16 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
-systemctl stop frps jumpfrp-agent 2>/dev/null || true
-systemctl disable frps jumpfrp-agent 2>/dev/null || true
-rm -f /etc/systemd/system/frps.service
+# 停止服务
+echo -e "${YELLOW}停止服务...${NC}"
+systemctl stop jumpfrp-agent 2>/dev/null || true
+systemctl disable jumpfrp-agent 2>/dev/null || true
 rm -f /etc/systemd/system/jumpfrp-agent.service
 systemctl daemon-reload
+
+# 清理文件
+echo -e "${YELLOW}清理文件...${NC}"
 rm -rf /opt/jumpfrp
+rm -f /etc/systemd/system/frps.service 2>/dev/null || true
 
 echo -e "${GREEN}卸载完成${NC}"

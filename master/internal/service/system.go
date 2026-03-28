@@ -2,6 +2,8 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/jumpfrp/master/internal/model"
@@ -89,6 +91,50 @@ func (s *SystemService) GetSMTPConfig() SMTPConfig {
 func (s *SystemService) SetSMTPConfig(cfg SMTPConfig) error {
 	b, _ := json.Marshal(cfg)
 	return s.Set("smtp", string(b), "SMTP 邮件配置")
+}
+
+// GenerateFrpsConfig 生成节点的 frps.toml 配置文件（带带宽限制）
+func (s *SystemService) GenerateFrpsConfig(node *model.Node) string {
+	var cfg strings.Builder
+
+	cfg.WriteString("# frps.toml - JumpFrp 服务端配置\n")
+	cfg.WriteString("# 由主控自动生成，请勿手动修改\n\n")
+
+	cfg.WriteString(fmt.Sprintf("bindPort = %d\n", node.FrpsPort))
+	cfg.WriteString(fmt.Sprintf("auth.method = \"token\"\n"))
+	cfg.WriteString(fmt.Sprintf("auth.token = \"%s\"\n", node.AgentToken))
+	cfg.WriteString("\n")
+
+	// 传输配置
+	cfg.WriteString("[transport]\n")
+	cfg.WriteString("max_pool_count = 100\n")
+	cfg.WriteString("pool_count = 10\n")
+	cfg.WriteString("tcp_mux = true\n")
+	cfg.WriteString("transport.tcp_mux = true\n")
+
+	// 带宽限制（服务端强制限速）
+	if node.BandwidthLimit > 0 {
+		cfg.WriteString(fmt.Sprintf("transport.max_bandwidth_per_client = \"%dMB\"\n", node.BandwidthLimit))
+	}
+
+	cfg.WriteString("\n")
+
+	// HTTP/HTTPS 配置
+	cfg.WriteString("[[vhost.httpRoutes]]\n")
+	cfg.WriteString("custom_domains = [\"*.jumpfrp.top\"]\n")
+	cfg.WriteString("\n")
+
+	cfg.WriteString("[[vhost.httpsRoutes]]\n")
+	cfg.WriteString("custom_domains = [\"*.jumpfrp.top\"]\n")
+	cfg.WriteString("\n")
+
+	// 日志配置
+	cfg.WriteString("[log]\n")
+	cfg.WriteString("to = \"/var/log/frps.log\"\n")
+	cfg.WriteString("level = \"info\"\n")
+	cfg.WriteString("max_days = 3\n")
+
+	return cfg.String()
 }
 
 // GetSiteConfig 获取站点配置
