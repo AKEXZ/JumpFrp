@@ -57,9 +57,16 @@ func setUserVIP(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		oldLevel := user.VIPLevel
-		expire := time.Now().AddDate(0, 0, req.Days)
+
+		// 如果设置为 Free（Days=0 表示永久Free，即到期）
+		var expire *time.Time
+		if req.Days > 0 {
+			e := time.Now().AddDate(0, 0, req.Days)
+			expire = &e
+		}
+
 		user.VIPLevel = req.VIPLevel
-		user.VIPExpireAt = &expire
+		user.VIPExpireAt = expire
 
 		// 使用 GORM 的 Select 指定要更新的字段（使用模型字段名）
 		result := db.Select("VIPLevel", "VIPExpireAt").Updates(&user)
@@ -68,27 +75,35 @@ func setUserVIP(db *gorm.DB) gin.HandlerFunc {
 			return
 		}
 
-		// 如果升级 VIP，自动调整现有隧道的带宽限制
-		if req.VIPLevel > oldLevel {
-			upgradeTunnelBandwidth(db, id, req.VIPLevel)
+		// 如果是降级/到期（VIPLevel = 0 或 Days = 0），关闭所有隧道
+		if req.VIPLevel == 0 || req.Days == 0 {
+			db.Model(&model.Tunnel{}).Where("user_id = ?", id).Updates(map[string]interface{}{
+				"Enabled":       false,
+				"BandwidthLimit": 1, // Free 带宽 1Mbps
+			})
+			log.Printf("[VIP] 用户 %s 被设置为 Free，已关闭所有隧道", user.Username)
+		} else if req.VIPLevel > oldLevel {
+			// 如果升级 VIP，自动调整现有隧道的带宽限制并开启隧道
+			upgradeTunnelBandwidthAndEnable(db, id, req.VIPLevel)
 		}
 
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "VIP 已设置"})
 	}
 }
 
-// upgradeTunnelBandwidth 升级用户所有隧道的带宽限制
-func upgradeTunnelBandwidth(db *gorm.DB, userID interface{}, newLevel int) {
+// upgradeTunnelBandwidthAndEnable 升级用户所有隧道的带宽限制并开启
+func upgradeTunnelBandwidthAndEnable(db *gorm.DB, userID interface{}, newLevel int) {
 	// 获取新 VIP 等级的带宽限制
 	quota := getVIPQuota(newLevel)
 	newBandwidth := quota.MaxBandwidth
 
-	// 更新该用户所有隧道的带宽限制
+	// 更新该用户所有隧道的带宽限制并开启
 	result := db.Model(&model.Tunnel{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
 		"BandwidthLimit": newBandwidth,
+		"Enabled":        true,
 	})
 
-	log.Printf("[VIP] 用户 %v 升级至 VIP%d，批量更新 %d 条隧道的带宽限制为 %d",
+	log.Printf("[VIP] 用户 %v 升级至 VIP%d，批量更新 %d 条隧道的带宽限制为 %d Mbps 并开启",
 		userID, newLevel, result.RowsAffected, newBandwidth)
 }
 
