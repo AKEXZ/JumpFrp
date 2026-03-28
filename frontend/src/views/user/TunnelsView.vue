@@ -24,11 +24,15 @@
       <el-card v-for="t in tunnels" :key="t.id" class="tunnel-card" shadow="hover">
         <div class="tunnel-header">
           <span class="tunnel-name">{{ t.name }}</span>
-          <el-tag :type="t.status === 'active' ? 'success' : 'info'" size="small">
-            {{ t.status === 'active' ? '在线' : '离线' }}
-          </el-tag>
+          <el-switch v-model="t.enabled" :loading="togglingId === t.id"
+            @change="handleToggle(t)" :disabled="togglingId === t.id" />
         </div>
         <div class="tunnel-info">
+          <div><span class="label">状态</span>
+            <el-tag v-if="!t.enabled" type="info" size="small">已禁用</el-tag>
+            <el-tag v-else-if="t.status === 'active'" type="success" size="small">在线</el-tag>
+            <el-tag v-else type="info" size="small">离线</el-tag>
+          </div>
           <div><span class="label">节点</span>{{ t.node?.name }} ({{ t.node?.region }})</div>
           <div><span class="label">协议</span><el-tag size="small">{{ t.protocol.toUpperCase() }}</el-tag></div>
           <div><span class="label">本地</span>{{ t.local_ip }}:{{ t.local_port }}</div>
@@ -146,6 +150,7 @@ const createVisible = ref(false)
 const helpVisible = ref(false)
 const creating = ref(false)
 const loading = ref(false)
+const togglingId = ref<number | null>(null)
 const currentTunnel = ref<any>(null)
 
 const vipNames: Record<number, string> = { 0: 'Free', 1: 'Basic', 2: 'Pro', 3: 'Ultimate' }
@@ -205,6 +210,19 @@ async function handleDelete(t: any) {
   await userApi.deleteTunnel(t.id)
   ElMessage.success('删除成功')
   loadData()
+}
+
+async function handleToggle(t: any) {
+  togglingId.value = t.id
+  try {
+    await userApi.toggleTunnel(t.id, t.enabled)
+    ElMessage.success(t.enabled ? '隧道已开启' : '隧道已关闭')
+  } catch {
+    // 恢复原状态
+    t.enabled = !t.enabled
+  } finally {
+    togglingId.value = null
+  }
 }
 
 async function downloadConfig(t: any) {

@@ -58,12 +58,13 @@ type Tunnel struct {
 	LocalPort        int            `json:"local_port"`
 	RemotePort       int            `json:"remote_port"`
 	Subdomain        string         `gorm:"size:100" json:"subdomain"`
-	BandwidthLimit   int            `json:"bandwidth_limit"` // Mbps, 0 means unlimited
+	BandwidthLimit   int            `gorm:"column:bandwidth_limit" json:"bandwidth_limit"` // Mbps
+	Enabled          bool           `gorm:"default:true" json:"enabled"` // 隧道开关，VIP过期关闭
 	Status           string         `gorm:"size:20;default:'inactive'" json:"status"`
 	LastConnectedAt  *time.Time     `json:"last_connected_at"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
-	DeletedAt        gorm.DeletedAt `gorm:"index" json:""`
+	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// 关联
 	User            User           `gorm:"foreignKey:UserID" json:"user,omitempty"`

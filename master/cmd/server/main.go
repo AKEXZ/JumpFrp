@@ -151,5 +151,22 @@ func fixMissingColumns(db *gorm.DB) {
 		}
 	}
 
+	// Tunnels 表需要添加的列
+	tunnelColumns := []struct {
+		column  string
+		colType string
+	}{
+		{"bandwidth_limit", "INTEGER DEFAULT 0"},
+		{"enabled", "INTEGER DEFAULT 1"},
+	}
+	for _, col := range tunnelColumns {
+		var count int64
+		db.Raw("SELECT COUNT(*) FROM pragma_table_info('tunnels') WHERE name = ?", col.column).Scan(&count)
+		if count == 0 {
+			db.Exec("ALTER TABLE tunnels ADD COLUMN " + col.column + " " + col.colType)
+			log.Printf("添加缺失列: tunnels.%s", col.column)
+		}
+	}
+
 	log.Println("数据库列修复完成")
 }

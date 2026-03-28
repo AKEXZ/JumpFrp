@@ -39,6 +39,7 @@ export const userApi = {
   listTunnels: () => api.get('/user/tunnels'),
   createTunnel: (data: any) => api.post('/user/tunnels', data),
   deleteTunnel: (id: number) => api.delete(`/user/tunnels/${id}`),
+  toggleTunnel: (id: number, enabled: boolean) => api.put(`/user/tunnels/${id}/toggle`, { enabled }),
   getFrpcConfig: (id: number) =>
     api.get(`/user/tunnels/${id}/frpc-config`, {
       responseType: 'text',

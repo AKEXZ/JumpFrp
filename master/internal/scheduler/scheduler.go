@@ -117,13 +117,12 @@ func (s *Scheduler) processExpiredVIPs() {
 			continue
 		}
 
-		// 降低所有隧道的带宽到 Free 等级
-		freeBandwidth := 1 // Free 等级带宽 1Mbps
+		// 关闭所有隧道的开关
 		result := s.db.Model(&model.Tunnel{}).Where("user_id = ?", user.ID).Updates(map[string]interface{}{
-			"BandwidthLimit": freeBandwidth,
+			"Enabled": false,
 		})
 
-		log.Printf("[VIP过期] 用户 %s VIP 已过期 (原等级: %d → Free)，已更新 %d 条隧道的带宽限制",
+		log.Printf("[VIP过期] 用户 %s VIP 已过期 (原等级: %d → Free)，已关闭 %d 条隧道的开关",
 			user.Username, oldLevel, result.RowsAffected)
 
 		// 发送通知邮件

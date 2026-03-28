@@ -39,11 +39,11 @@ func (s *TunnelService) Create(userID uint, input CreateTunnelInput) (*model.Tun
 
 	quota := user.GetQuota()
 
-	// 检查隧道数量限制
-	var tunnelCount int64
-	s.db.Model(&model.Tunnel{}).Where("user_id = ?", userID).Count(&tunnelCount)
-	if int(tunnelCount) >= quota.MaxTunnels {
-		return nil, fmt.Errorf("已达到隧道数量上限 (%d)，请升级 VIP", quota.MaxTunnels)
+	// 检查隧道数量限制（只统计已开启的隧道）
+	var enabledCount int64
+	s.db.Model(&model.Tunnel{}).Where("user_id = ? AND enabled = ?", userID, true).Count(&enabledCount)
+	if int(enabledCount) >= quota.MaxTunnels {
+		return nil, fmt.Errorf("已达到隧道数量上限 (%d)，请升级 VIP 或关闭其他隧道", quota.MaxTunnels)
 	}
 
 	// 检查协议权限

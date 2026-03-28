@@ -1,6 +1,7 @@
 package user
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -201,6 +202,45 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "删除成功"})
+	})
+
+	// 切换隧道开关
+	auth.PUT("/tunnels/:id/toggle", func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		tunnelID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+
+		// 获取用户配额
+		var user model.User
+		db.First(&user, userID)
+		quota := user.GetQuota()
+
+		// 如果是开启隧道，检查是否超过限制
+		if req.Enabled {
+			var enabledCount int64
+			db.Model(&model.Tunnel{}).Where("user_id = ? AND enabled = ? AND id != ?", userID, true, tunnelID).Count(&enabledCount)
+			if int(enabledCount) >= quota.MaxTunnels {
+				c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": fmt.Sprintf("开启隧道数量已达上限 (%d)，请先关闭其他隧道", quota.MaxTunnels)})
+				return
+			}
+		}
+
+		// 更新隧道开关状态
+		result := db.Model(&model.Tunnel{}).Where("id = ? AND user_id = ?", tunnelID, userID).Updates(map[string]interface{}{
+			"Enabled": req.Enabled,
+		})
+		if result.RowsAffected == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "隧道不存在"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "设置成功"})
 	})
 
 	// 获取 frpc 配置文件
