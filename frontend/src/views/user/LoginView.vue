@@ -41,6 +41,10 @@ const loading = ref(false)
 const loginForm = ref({ email: '', password: '' })
 
 async function handleLogin() {
+  if (!loginForm.value.email || !loginForm.value.password) {
+    ElMessage.warning('请输入用户名/邮箱和密码')
+    return
+  }
   loading.value = true
   try {
     const res: any = await userApi.login(loginForm.value)
@@ -51,6 +55,8 @@ async function handleLogin() {
     } else {
       router.push('/dashboard')
     }
+  } catch (e: any) {
+    // 错误已在拦截器中显示
   } finally {
     loading.value = false
   }
