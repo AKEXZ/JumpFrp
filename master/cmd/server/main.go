@@ -147,6 +147,7 @@ func fixMissingColumns(db *gorm.DB) {
 		colType string
 	}{
 		{"bandwidth_limit", "INTEGER DEFAULT 0"},
+		{"token", "TEXT"},
 	}
 	for _, col := range nodeColumns {
 		var count int64

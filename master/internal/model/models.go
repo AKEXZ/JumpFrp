@@ -22,6 +22,7 @@ type Node struct {
 	FrpsPort         int            `gorm:"default:7000" json:"frps_port"`
 	AgentPort        int            `gorm:"default:7500" json:"agent_port"`
 	AgentToken       string         `gorm:"size:64" json:"-"`
+	Token            string         `gorm:"size:64" json:"-"` // frps 认证 token
 	PortRangeStart   int            `json:"port_range_start"`
 	PortRangeEnd     int            `json:"port_range_end"`
 	PortExcludes     string         `gorm:"size:500" json:"port_excludes"` // comma separated
