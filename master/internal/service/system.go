@@ -70,7 +70,30 @@ func (s *SystemService) Set(key, value, remark string) error {
 	s.mu.Lock()
 	s.cache[key] = value
 	s.mu.Unlock()
+	
+	// 如果是用户相关的更新，递增配置版本
+	if key == "api_token" || strings.HasPrefix(key, "user_") {
+		s.IncrementConfigVersion()
+	}
+	
 	return nil
+}
+
+// GetConfigVersion 获取当前配置版本号
+func (s *SystemService) GetConfigVersion() int {
+	versionStr := s.Get("config_version")
+	if versionStr == "" {
+		return 0
+	}
+	var version int
+	fmt.Sscanf(versionStr, "%d", &version)
+	return version
+}
+
+// IncrementConfigVersion 递增配置版本号（新增用户时调用）
+func (s *SystemService) IncrementConfigVersion() {
+	version := s.GetConfigVersion() + 1
+	s.Set("config_version", fmt.Sprintf("%d", version), "frps 配置版本号")
 }
 
 // GetSMTPConfig 获取 SMTP 配置

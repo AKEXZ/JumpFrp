@@ -20,10 +20,11 @@ type AuthService struct {
 	db      *gorm.DB
 	cfg     *config.Config
 	mailSvc *MailService
+	sysSvc  *SystemService
 }
 
 func NewAuthService(db *gorm.DB, cfg *config.Config, sysSvc *SystemService) *AuthService {
-	return &AuthService{db: db, cfg: cfg, mailSvc: NewMailService(sysSvc)}
+	return &AuthService{db: db, cfg: cfg, mailSvc: NewMailService(sysSvc), sysSvc: sysSvc}
 }
 
 type RegisterInput struct {
@@ -92,6 +93,9 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, error) {
 
 	// 清除验证码
 	s.db.Where("key = ?", key).Delete(&model.SystemConfig{})
+
+	// 新增用户后递增配置版本（通知 Agent 更新 frps 配置）
+	s.sysSvc.IncrementConfigVersion()
 
 	return newUser, nil
 }

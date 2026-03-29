@@ -80,11 +80,20 @@ func agentHeartbeat(db *gorm.DB, sysSvc *service.SystemService) gin.HandlerFunc 
 		})
 
 		// 返回心跳响应，包含是否需要更新配置
+		currentVersion := sysSvc.GetConfigVersion()
+		needsUpdate := req.ConfigVersion < currentVersion
+		
+		var frpsConfig string
+		if needsUpdate {
+			frpsConfig = sysSvc.GenerateFrpsConfig(&node)
+		}
+		
 		c.JSON(http.StatusOK, gin.H{
-			"code":           0,
-			"msg":            "心跳已接收",
-			"frps_config":    sysSvc.GenerateFrpsConfig(&node),
-			"config_version": 1, // 配置版本号
+			"code":            0,
+			"msg":             "心跳已接收",
+			"frps_config":     frpsConfig,
+			"config_version":  currentVersion,
+			"needs_update":    needsUpdate,
 		})
 	}
 }

@@ -255,12 +255,13 @@ func (a *Agent) sendHeartbeat() {
 	}
 
 	payload := map[string]interface{}{
-		"node_id":       a.cfg.NodeID,
-		"token":         a.cfg.Token,
-		"cpu_usage":     stats.CPUUsage,
-		"memory_usage":  stats.MemoryUsage,
-		"current_conns": conns,
-		"version":       "1.0.0",
+		"node_id":        a.cfg.NodeID,
+		"token":          a.cfg.Token,
+		"cpu_usage":      stats.CPUUsage,
+		"memory_usage":   stats.MemoryUsage,
+		"current_conns":  conns,
+		"version":        "1.0.0",
+		"config_version": a.configVersion,
 	}
 
 	resp, err := a.callMasterWithResponse("POST", "/api/agent/heartbeat", payload)
@@ -269,8 +270,15 @@ func (a *Agent) sendHeartbeat() {
 		return
 	}
 
-	if resp != nil && resp.FrpsConfig != "" {
-		a.saveAndApplyFrpsConfig(resp.FrpsConfig)
+	if resp != nil {
+		// 检查是否需要更新配置
+		if resp.NeedsUpdate && resp.FrpsConfig != "" {
+			log.Println("[配置] 检测到新的 frps 配置，正在更新...")
+			if a.saveAndApplyFrpsConfig(resp.FrpsConfig) {
+				a.configVersion = resp.ConfigVersion
+				log.Printf("[配置] frps 配置已更新至版本 %d", resp.ConfigVersion)
+			}
+		}
 	}
 }
 
@@ -289,9 +297,10 @@ func (a *Agent) saveAndApplyFrpsConfig(config string) bool {
 
 type masterResponse struct {
 	Code         int    `json:"code"`
-	Msg          string `json:"msg"`
-	FrpsConfig   string `json:"frps_config"`
-	ConfigVersion int   `json:"config_version"`
+	Msg            string `json:"msg"`
+	FrpsConfig     string `json:"frps_config"`
+	ConfigVersion  int    `json:"config_version"`
+	NeedsUpdate    bool   `json:"needs_update"`
 }
 
 func (a *Agent) callMasterWithResponse(method, path string, payload interface{}) (*masterResponse, error) {
