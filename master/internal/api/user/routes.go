@@ -193,6 +193,34 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "隧道创建成功", "data": tunnel})
 	})
 
+	// 更新隧道
+	auth.PUT("/tunnels/:id", func(c *gin.Context) {
+		userID, _ := c.Get("user_id")
+		tunnelID, _ := strconv.ParseUint(c.Param("id"), 10, 64)
+		var input struct {
+			NodeID    uint   `json:"node_id"`
+			Protocol  string `json:"protocol"`
+			LocalIP   string `json:"local_ip"`
+			LocalPort int    `json:"local_port"`
+		}
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+		updateInput := service.UpdateTunnelInput{
+			NodeID:    input.NodeID,
+			Protocol:  input.Protocol,
+			LocalIP:   input.LocalIP,
+			LocalPort: input.LocalPort,
+		}
+		tunnel, err := tunnelSvc.Update(userID.(uint), uint(tunnelID), updateInput)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "隧道已更新", "data": tunnel})
+	})
+
 	// 删除隧道
 	auth.DELETE("/tunnels/:id", func(c *gin.Context) {
 		userID, _ := c.Get("user_id")

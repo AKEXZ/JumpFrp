@@ -38,6 +38,7 @@ export const userApi = {
   listAvailableNodes: () => api.get('/user/available-nodes'),
   listTunnels: () => api.get('/user/tunnels'),
   createTunnel: (data: any) => api.post('/user/tunnels', data),
+  updateTunnel: (id: number, data: any) => api.put(`/user/tunnels/${id}`, data),
   deleteTunnel: (id: number) => api.delete(`/user/tunnels/${id}`),
   toggleTunnel: (id: number, enabled: boolean) => api.put(`/user/tunnels/${id}/toggle`, { enabled }),
   getFrpcConfig: (id: number) =>

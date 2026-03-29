@@ -29,6 +29,14 @@ type CreateTunnelInput struct {
 	Subdomain string `json:"subdomain"`
 }
 
+// 更新隧道输入
+type UpdateTunnelInput struct {
+	NodeID    uint   `json:"node_id"`
+	Protocol  string `json:"protocol"`
+	LocalIP   string `json:"local_ip"`
+	LocalPort int    `json:"local_port"`
+}
+
 // 创建隧道
 func (s *TunnelService) Create(userID uint, input CreateTunnelInput) (*model.Tunnel, error) {
 	// 获取用户信息
@@ -134,6 +142,72 @@ func (s *TunnelService) Create(userID uint, input CreateTunnelInput) (*model.Tun
 	// 预加载关联
 	s.db.Preload("Node").First(tunnel, tunnel.ID)
 	return tunnel, nil
+}
+
+// 更新隧道
+func (s *TunnelService) Update(userID uint, tunnelID uint, input UpdateTunnelInput) (*model.Tunnel, error) {
+	var tunnel model.Tunnel
+	if err := s.db.Where("id = ? AND user_id = ?", tunnelID, userID).First(&tunnel).Error; err != nil {
+		return nil, errors.New("隧道不存在")
+	}
+
+	// 获取用户信息
+	var user model.User
+	s.db.First(&user, userID)
+	quota := user.GetQuota()
+
+	// 如果更换了节点，检查新节点
+	if input.NodeID != 0 && input.NodeID != tunnel.NodeID {
+		var node model.Node
+		if err := s.db.First(&node, input.NodeID).Error; err != nil {
+			return nil, errors.New("节点不存在")
+		}
+		if node.Status == model.NodeStatusOffline {
+			return nil, errors.New("该节点当前离线")
+		}
+		if node.MinVIPLevel > user.VIPLevel {
+			return nil, fmt.Errorf("该节点需要 VIP %d 及以上", node.MinVIPLevel)
+		}
+		tunnel.NodeID = input.NodeID
+	}
+
+	// 如果更换了协议
+	if input.Protocol != "" && input.Protocol != tunnel.Protocol {
+		allowed := false
+		for _, p := range quota.Protocols {
+			if p == input.Protocol {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return nil, fmt.Errorf("当前 VIP 不支持 %s 协议", input.Protocol)
+		}
+		tunnel.Protocol = input.Protocol
+	}
+
+	// 如果更换了本地IP
+	if input.LocalIP != "" {
+		tunnel.LocalIP = input.LocalIP
+	}
+
+	// 如果更换了本地端口
+	if input.LocalPort != 0 {
+		// 检查本地端口是否冲突（同用户）
+		var count int64
+		s.db.Model(&model.Tunnel{}).
+			Where("user_id = ? AND id != ? AND local_ip = ? AND local_port = ?",
+				userID, tunnelID, tunnel.LocalIP, input.LocalPort).
+			Count(&count)
+		if count > 0 {
+			return nil, errors.New("本地端口已被其他隧道占用")
+		}
+		tunnel.LocalPort = input.LocalPort
+	}
+
+	s.db.Save(&tunnel)
+	s.db.Preload("Node").First(&tunnel, tunnelID)
+	return &tunnel, nil
 }
 
 // 从节点端口池随机分配一个未使用的端口

@@ -44,6 +44,7 @@
           <div><span class="label">带宽</span>{{ t.bandwidth_limit }} Mbps</div>
         </div>
         <div class="tunnel-actions">
+          <el-button size="small" @click="openEdit(t)">编辑</el-button>
           <el-button size="small" @click="downloadConfig(t)">下载配置</el-button>
           <el-button size="small" @click="showHelp(t)">使用教程</el-button>
           <el-button size="small" type="danger" @click="handleDelete(t)">删除</el-button>
@@ -132,6 +133,53 @@
         </template>
       </el-alert>
     </el-dialog>
+
+    <!-- 编辑隧道对话框 -->
+    <el-dialog v-model="editVisible" title="编辑隧道" width="520px">
+      <el-form :model="editForm" label-width="100px">
+        <el-form-item label="隧道名称">
+          <el-input :value="editForm.name" disabled />
+          <div style="font-size:12px;color:#999;margin-top:4px">隧道名称不可修改</div>
+        </el-form-item>
+        <el-form-item label="选择节点">
+          <el-select v-model="editForm.node_id" placeholder="请选择节点" style="width:100%">
+            <el-option v-for="n in nodes" :key="n.id" :value="n.id"
+              :label="`${n.name} (${n.region})`"
+              :disabled="n.min_vip_level > (user?.vip_level || 0)">
+              <span>{{ n.name }}</span>
+              <span style="float:right;color:#999;font-size:12px">
+                {{ n.region }}
+                <el-tag v-if="n.min_vip_level > 0" size="small" type="warning">
+                  VIP{{ n.min_vip_level }}+
+                </el-tag>
+              </span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="协议类型">
+          <el-radio-group v-model="editForm.protocol">
+            <el-radio-button v-for="p in allowedProtocols" :key="p" :value="p">
+              {{ p.toUpperCase() }}
+            </el-radio-button>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="本地IP">
+          <el-input v-model="editForm.local_ip" placeholder="127.0.0.1" />
+        </el-form-item>
+        <el-form-item label="本地端口">
+          <el-input-number v-model="editForm.local_port" :min="1" :max="65535" style="width:100%" />
+        </el-form-item>
+        <el-alert type="warning" :closable="false" style="margin-top:8px">
+          <template #title>
+            修改节点或协议后，远程端口将重新分配，请重新下载 frpc 配置
+          </template>
+        </el-alert>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="editing" @click="handleEdit">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -152,6 +200,16 @@ const creating = ref(false)
 const loading = ref(false)
 const togglingId = ref<number | null>(null)
 const currentTunnel = ref<any>(null)
+const editVisible = ref(false)
+const editing = ref(false)
+const editForm = ref({
+  id: 0,
+  name: '',
+  node_id: null as number | null,
+  protocol: 'tcp',
+  local_ip: '127.0.0.1',
+  local_port: 8080,
+})
 
 const vipNames: Record<number, string> = { 0: 'Free', 1: 'Basic', 2: 'Pro', 3: 'Ultimate' }
 const quotas: Record<number, any> = {
@@ -222,6 +280,35 @@ async function handleToggle(t: any) {
     t.enabled = !t.enabled
   } finally {
     togglingId.value = null
+  }
+}
+
+function openEdit(t: any) {
+  editForm.value = {
+    id: t.id,
+    name: t.name,
+    node_id: t.node_id,
+    protocol: t.protocol,
+    local_ip: t.local_ip,
+    local_port: t.local_port,
+  }
+  editVisible.value = true
+}
+
+async function handleEdit() {
+  editing.value = true
+  try {
+    await userApi.updateTunnel(editForm.value.id, {
+      node_id: editForm.value.node_id,
+      protocol: editForm.value.protocol,
+      local_ip: editForm.value.local_ip,
+      local_port: editForm.value.local_port,
+    })
+    ElMessage.success('隧道已更新，请重新下载 frpc 配置')
+    editVisible.value = false
+    loadData()
+  } finally {
+    editing.value = false
   }
 }
 
