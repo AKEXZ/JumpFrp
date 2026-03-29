@@ -31,6 +31,30 @@
       </el-col>
     </el-row>
 
+    <!-- API Token 卡片 -->
+    <el-card style="margin-bottom:20px">
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span>API Token</span>
+          <el-button text size="small" @click="copyToken">复制</el-button>
+        </div>
+      </template>
+      <div style="display:flex;align-items:center;gap:12px">
+        <el-input 
+          :value="user?.api_token" 
+          :type="showToken ? 'text' : 'password'"
+          readonly
+          style="flex:1"
+        />
+        <el-button @click="showToken = !showToken" icon="View">
+          {{ showToken ? '隐藏' : '显示' }}
+        </el-button>
+      </div>
+      <div style="margin-top:12px;font-size:12px;color:#999">
+        用于 frpc 客户端认证。请妥善保管，不要分享给他人。
+      </div>
+    </el-card>
+
     <!-- 快速操作 -->
     <el-card style="margin-bottom:20px">
       <template #header>快速操作</template>
@@ -73,12 +97,14 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { userApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
 const user = computed(() => auth.user)
 const tunnels = ref<any[]>([])
+const showToken = ref(false)
 
 const quotas: Record<number, any> = {
   0: { maxTunnels: 1 },
@@ -88,6 +114,12 @@ const quotas: Record<number, any> = {
 }
 
 const activeTunnels = computed(() => tunnels.value.filter(t => t.status === 'active').length)
+
+function copyToken() {
+  if (!user.value?.api_token) return
+  navigator.clipboard.writeText(user.value.api_token)
+  ElMessage.success('Token 已复制到剪贴板')
+}
 
 onMounted(async () => {
   const res: any = await userApi.listTunnels()
