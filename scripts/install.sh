@@ -101,7 +101,7 @@ done
 if [[ -n "$DEPS" ]]; then
   echo -e "${YELLOW}缺少依赖: $DEPS${NC}"
   echo -e "${YELLOW}正在安装...${NC}"
-  apt-get update && apt-get install -y$iproute2 iptables wget curl tar gzip 2>/dev/null || \
+  apt-get update && apt-get install -y iproute2 iptables wget curl tar gzip 2>/dev/null || \
   yum install -y iproute iptables wget curl tar gzip 2>/dev/null || \
   echo -e "${RED}自动安装依赖失败，请手动安装: $DEPS${NC}"
 fi
@@ -162,8 +162,8 @@ echo -e "${GREEN}frps 已安装 (v${FRPS_VERSION})${NC}"
 
 # 下载 Agent（从 GitHub Releases 下载）
 echo -e "${GREEN}[3/6] 下载 JumpFrp Agent...${NC}"
-AGENT_VERSION="v1.0.0"
-AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}.gz"
+AGENT_VERSION="v1.1.0"
+AGENT_URL="https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent"
 
 # 根据是否使用代理选择下载地址
 if [[ "$USE_PROXY" == "true" ]]; then
@@ -174,14 +174,14 @@ else
 fi
 
 echo -e "${YELLOW}正在连接...${NC}"
-if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$AGENT_URL" 2>&1; then
+if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/jumpfrp-agent "$AGENT_URL" 2>&1; then
   echo -e "${GREEN}Agent 下载完成${NC}"
 else
   # 如果直连失败，且未使用代理，尝试使用代理
   if [[ "$USE_PROXY" != "true" ]]; then
     echo -e "${YELLOW}直连失败，尝试使用代理下载...${NC}"
-    PROXY_URL="https://gitproxy.ake.cx/https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent-linux-${FRPS_ARCH}.gz"
-    if wget --progress=bar:force --timeout=60 -O /tmp/agent.gz "$PROXY_URL" 2>&1; then
+    PROXY_URL="https://gitproxy.ake.cx/https://github.com/AKEXZ/JumpFrp/releases/download/${AGENT_VERSION}/jumpfrp-agent"
+    if wget --progress=bar:force --timeout=60 -O $INSTALL_DIR/jumpfrp-agent "$PROXY_URL" 2>&1; then
       echo -e "${GREEN}Agent 下载完成（通过代理）${NC}"
     else
       echo -e "${RED}下载 Agent 失败${NC}"
@@ -193,20 +193,14 @@ else
   fi
 fi
 
-# 解压
-echo -e "${YELLOW}正在解压...${NC}"
-if gunzip -f /tmp/agent.gz && mv /tmp/agent $INSTALL_DIR/agent; then
-  chmod +x $INSTALL_DIR/agent
-  # 验证是否为有效的 ELF 可执行文件
-  if file $INSTALL_DIR/agent | grep -q "ELF"; then
-    echo -e "${GREEN}Agent 安装完成${NC}"
-  else
-    echo -e "${RED}Agent 解压失败：文件格式不正确${NC}"
-    rm -f $INSTALL_DIR/agent
-    exit 1
-  fi
+chmod +x $INSTALL_DIR/jumpfrp-agent
+
+# 验证是否为有效的 ELF 可执行文件
+if file $INSTALL_DIR/jumpfrp-agent | grep -q "ELF"; then
+  echo -e "${GREEN}Agent 已安装 (v${AGENT_VERSION})${NC}"
 else
-  echo -e "${RED}Agent 解压失败${NC}"
+  echo -e "${RED}Agent 文件格式不正确${NC}"
+  rm -f $INSTALL_DIR/jumpfrp-agent
   exit 1
 fi
 
@@ -226,7 +220,6 @@ cat > $INSTALL_DIR/frps.toml << EOF
 # 此文件由 Agent 自动从主控获取，版本可能不同
 bindPort = ${FRPS_PORT}
 auth.method = "token"
-auth.token = "${TOKEN}"
 
 [transport]
 max_pool_count = 100
@@ -252,7 +245,7 @@ After=network.target
 [Service]
 Type=simple
 EnvironmentFile=/opt/jumpfrp/agent.env
-ExecStart=/opt/jumpfrp/agent
+ExecStart=/opt/jumpfrp/jumpfrp-agent
 Restart=always
 RestartSec=5
 
@@ -292,9 +285,9 @@ echo "  ├─ Agent 端口: $AGENT_PORT"
 echo "  └─ 节点标识: $NODE_ID"
 echo ""
 echo "常用命令:"
-echo "  ├─ 查看状态: systemctl status frps jumpfrp-agent"
-echo "  ├─ 查看日志: journalctl -u frps -u jumpfrp-agent -f"
-echo "  └─ 重启服务: systemctl restart frps jumpfrp-agent"
+echo "  ├─ 查看状态: systemctl status jumpfrp-agent"
+echo "  ├─ 查看日志: journalctl -u jumpfrp-agent -f"
+echo "  └─ 重启服务: systemctl restart jumpfrp-agent"
 echo ""
 echo -e "${YELLOW}提示: 请前往管理后台确认节点状态已变为「在线」${NC}"
 echo -e "${YELLOW}如果显示离线，请检查: ${NC}"
