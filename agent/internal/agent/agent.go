@@ -80,6 +80,10 @@ func (a *Agent) Start() error {
 	// 向主控注册
 	go a.register()
 
+	// 立即尝试一次心跳获取配置（不等待 30s）
+	time.Sleep(2 * time.Second)
+	a.sendHeartbeat()
+
 	// 启动心跳
 	go a.heartbeatLoop()
 
