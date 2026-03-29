@@ -93,7 +93,7 @@ func (s *SystemService) SetSMTPConfig(cfg SMTPConfig) error {
 	return s.Set("smtp", string(b), "SMTP 邮件配置")
 }
 
-// GenerateFrpsConfig 生成节点的 frps.toml 配置文件（带带宽限制）
+// GenerateFrpsConfig 生成节点的 frps.toml 配置文件（带所有用户 token）
 func (s *SystemService) GenerateFrpsConfig(node *model.Node) string {
 	var cfg strings.Builder
 
@@ -102,8 +102,18 @@ func (s *SystemService) GenerateFrpsConfig(node *model.Node) string {
 
 	cfg.WriteString(fmt.Sprintf("bindPort = %d\n", node.FrpsPort))
 	cfg.WriteString(fmt.Sprintf("auth.method = \"token\"\n"))
-	cfg.WriteString(fmt.Sprintf("auth.token = \"%s\"\n", node.AgentToken))
 	cfg.WriteString("\n")
+
+	// 获取所有用户的 API Token
+	var users []model.User
+	s.db.Where("api_token != '' AND api_token IS NOT NULL").Find(&users)
+
+	// 添加所有用户的 token
+	for _, user := range users {
+		cfg.WriteString(fmt.Sprintf("[[auth.tokens]]\n"))
+		cfg.WriteString(fmt.Sprintf("token = \"%s\"\n", user.APIToken))
+		cfg.WriteString("\n")
+	}
 
 	// 传输配置
 	cfg.WriteString("[transport]\n")
