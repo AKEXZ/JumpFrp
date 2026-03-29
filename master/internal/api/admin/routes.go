@@ -1,6 +1,9 @@
 package admin
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -83,4 +86,53 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 		// 系统设置
 		RegisterSettingsRoutes(auth, db, sysSvc)
 	}
+
+	// 公开路由（不需要认证）
+	// 节点自动注册（安装脚本使用）
+	rg.POST("/node/auto-register", func(c *gin.Context) {
+		var req struct {
+			Name   string `json:"name" binding:"required"`
+			IP     string `json:"ip" binding:"required"`
+			Region string `json:"region" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+
+		// 创建节点
+		node := model.Node{
+			Name:       req.Name,
+			IP:         req.IP,
+			Region:     req.Region,
+			FrpsPort:   7000,
+			AgentPort:  7500,
+			Status:     model.NodeStatusOffline,
+			AgentToken: generateToken(32),
+			Slug:       fmt.Sprintf("node-%s", generateToken(6)),
+		}
+
+		if err := db.Create(&node).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "创建节点失败"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"code": 0,
+			"msg":  "节点创建成功",
+			"data": gin.H{
+				"node_id": node.Slug,
+				"token":   node.AgentToken,
+				"name":    node.Name,
+				"ip":      node.IP,
+				"region":  node.Region,
+			},
+		})
+	})
+}
+
+func generateToken(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return hex.EncodeToString(b)[:length]
 }
