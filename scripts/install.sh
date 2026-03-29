@@ -196,10 +196,25 @@ fi
 chmod +x $INSTALL_DIR/jumpfrp-agent
 
 # 验证是否为有效的 ELF 可执行文件
-if file $INSTALL_DIR/jumpfrp-agent | grep -q "ELF"; then
+echo -e "${YELLOW}验证 Agent 文件...${NC}"
+FILE_TYPE=$(file $INSTALL_DIR/jumpfrp-agent)
+if echo "$FILE_TYPE" | grep -q "ELF"; then
   echo -e "${GREEN}Agent 已安装 (v${AGENT_VERSION})${NC}"
+  echo -e "${GREEN}文件类型: $(echo "$FILE_TYPE" | cut -d: -f2)${NC}"
 else
-  echo -e "${RED}Agent 文件格式不正确${NC}"
+  echo -e "${RED}❌ Agent 文件格式不正确${NC}"
+  echo -e "${RED}文件类型: $FILE_TYPE${NC}"
+  echo ""
+  echo -e "${YELLOW}可能的原因:${NC}"
+  echo "  1. 下载失败或不完整"
+  echo "  2. GitHub Release 文件损坏"
+  echo ""
+  echo -e "${YELLOW}解决方法:${NC}"
+  echo "  1. 检查网络连接"
+  echo "  2. 尝试使用代理: --use-proxy"
+  echo "  3. 手动下载并验证:"
+  echo "     wget -O /opt/jumpfrp/jumpfrp-agent https://github.com/AKEXZ/JumpFrp/releases/download/v1.1.0/jumpfrp-agent"
+  echo "     file /opt/jumpfrp/jumpfrp-agent"
   rm -f $INSTALL_DIR/jumpfrp-agent
   exit 1
 fi
