@@ -74,6 +74,12 @@ func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config, sysSvc
 		auth.PUT("/subdomains/:id/approve", approveSubdomain(db))
 		auth.DELETE("/subdomains/:id", deleteSubdomain(db))
 
+		// 系统管理
+		auth.POST("/system/force-update-config", func(c *gin.Context) {
+			sysSvc.IncrementConfigVersion()
+			c.JSON(http.StatusOK, gin.H{"code": 0, "msg": "已通知所有 Agent 更新配置，请等待 30 秒"})
+		})
+
 		// 系统设置
 		RegisterSettingsRoutes(auth, db, sysSvc)
 	}
