@@ -286,12 +286,6 @@ func (s *TunnelService) GenFrpcConfig(tunnelID uint) (string, error) {
 		return "", errors.New("隧道不存在")
 	}
 
-	// 获取 frps token（从节点配置或使用默认值）
-	frpsToken := "default-token"
-	if tunnel.Node.Token != "" {
-		frpsToken = tunnel.Node.Token
-	}
-
 	var cfg strings.Builder
 
 	// common 部分
@@ -299,7 +293,7 @@ func (s *TunnelService) GenFrpcConfig(tunnelID uint) (string, error) {
 	cfg.WriteString(fmt.Sprintf("server_addr = \"%s\"\n", tunnel.Node.IP))
 	cfg.WriteString(fmt.Sprintf("server_port = %d\n", tunnel.Node.FrpsPort))
 	cfg.WriteString(fmt.Sprintf("auth.method = \"token\"\n"))
-	cfg.WriteString(fmt.Sprintf("auth.token = \"%s\"\n", frpsToken))
+	cfg.WriteString(fmt.Sprintf("auth.token = \"%s\"\n", tunnel.User.APIToken))
 	cfg.WriteString(fmt.Sprintf("pool_count = 10\n"))
 	cfg.WriteString(fmt.Sprintf("transport.tcp_mux = true\n"))
 	cfg.WriteString(fmt.Sprintf("transport.protocol = \"%s\"\n\n", tunnel.Protocol))

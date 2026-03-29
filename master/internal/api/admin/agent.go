@@ -94,6 +94,7 @@ func RegisterAgentRoutes(rg *gin.RouterGroup, db *gorm.DB, sysSvc *service.Syste
 	rg.POST("/register", agentRegister(db, sysSvc))
 	rg.POST("/heartbeat", agentHeartbeat(db, sysSvc))
 	rg.POST("/get-user-vip", getUserVIPLevel(db))
+	rg.POST("/get-all-tokens", getAllUserTokens(db))
 }
 
 // getUserVIPLevel 获取用户的 VIP 等级（Agent 查询用）
@@ -115,5 +116,40 @@ func getUserVIPLevel(db *gorm.DB) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"code": 0, "vip_level": user.VIPLevel})
+	}
+}
+
+// 获取所有用户的 API Token（供 Agent 更新 frps 配置）
+func getAllUserTokens(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			NodeID string `json:"node_id" binding:"required"`
+			Token  string `json:"token" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": err.Error()})
+			return
+		}
+
+		// 验证 Agent 身份
+		var node model.Node
+		if err := db.Where("slug = ? AND agent_token = ?", req.NodeID, req.Token).First(&node).Error; err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "节点认证失败"})
+			return
+		}
+
+		// 获取所有用户的 API Token
+		var users []model.User
+		db.Where("api_token != '' AND api_token IS NOT NULL").Pluck("api_token", &users)
+
+		var tokens []string
+		for _, user := range users {
+			tokens = append(tokens, user.APIToken)
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"code":   0,
+			"tokens": tokens,
+		})
 	}
 }

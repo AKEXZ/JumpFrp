@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -61,16 +62,10 @@ func (m *Manager) Start() error {
 
 // 保存默认配置文件
 func (m *Manager) saveDefaultConfig() {
-	token := os.Getenv("FRPS_TOKEN")
-	if token == "" {
-		token = "default-token"
-	}
-
 	cfg := fmt.Sprintf(`
 # frps.toml - JumpFrp 服务端配置
 bindPort = %d
 auth.method = "token"
-auth.token = "%s"
 
 [transport]
 max_pool_count = 100
@@ -80,9 +75,50 @@ pool_count = 10
 to = "/var/log/frps.log"
 level = "info"
 max_days = 3
-`, m.port, token)
+`, m.port)
 
 	os.WriteFile(m.configPath, []byte(cfg), 0644)
+}
+
+// UpdateTokens 更新 frps 配置中的 token 列表
+func (m *Manager) UpdateTokens(tokens []string) error {
+	// 读取现有配置
+	data, err := os.ReadFile(m.configPath)
+	if err != nil {
+		return err
+	}
+
+	cfg := string(data)
+
+	// 移除旧的 [[auth.tokens]] 部分
+	lines := strings.Split(cfg, "\n")
+	var newLines []string
+	skipTokens := false
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "[[auth.tokens]]") {
+			skipTokens = true
+			continue
+		}
+		if skipTokens && strings.HasPrefix(strings.TrimSpace(line), "token = ") {
+			continue
+		}
+		if skipTokens && strings.TrimSpace(line) == "" {
+			skipTokens = false
+		}
+		if !skipTokens {
+			newLines = append(newLines, line)
+		}
+	}
+
+	// 添加新的 token 列表
+	var tokenCfg strings.Builder
+	for _, token := range tokens {
+		tokenCfg.WriteString("\n[[auth.tokens]]\n")
+		tokenCfg.WriteString(fmt.Sprintf("token = \"%s\"\n", token))
+	}
+
+	newCfg := strings.Join(newLines, "\n") + tokenCfg.String()
+	return os.WriteFile(m.configPath, []byte(newCfg), 0644)
 }
 
 // Restart 重启 frps
