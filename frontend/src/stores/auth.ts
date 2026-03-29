@@ -9,6 +9,7 @@ interface User {
   vip_level: number
   vip_expire_at: string | null
   status: string
+  api_token: string
 }
 
 export const useAuthStore = defineStore('auth', () => {
