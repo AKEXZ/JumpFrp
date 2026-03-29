@@ -1,8 +1,8 @@
 # JumpFrp 项目完整开发文档
 
-> 版本：v2.0
-> 日期：2026-03-27
-> 状态：✅ 功能完成
+> 版本：v2.1
+> 日期：2026-03-29
+> 状态：✅ 功能完成 + 隧道编辑 + Token 自动生成
 
 ---
 
@@ -210,6 +210,8 @@ JumpFrp/
 | remote_port | int | 分配的远程端口 |
 | subdomain | string(50) | 子域名（HTTP/HTTPS） |
 | status | string(20) | 状态：active/stopped |
+| bandwidth_limit | int | 带宽限制（Mbps） |
+| enabled | bool | 是否启用（true/false） |
 | created_at | time.Time | 创建时间 |
 | updated_at | time.Time | 更新时间 |
 
@@ -303,7 +305,9 @@ JumpFrp/
 |------|------|------|
 | GET | /api/user/tunnels | 隧道列表 |
 | POST | /api/user/tunnels | 创建隧道 |
+| PUT | /api/user/tunnels/:id | 编辑隧道 |
 | DELETE | /api/user/tunnels/:id | 删除隧道 |
+| PUT | /api/user/tunnels/:id/toggle | 开启/关闭隧道 |
 | GET | /api/user/tunnels/:id/frpc-config | 下载 frpc 配置 |
 
 #### 域名相关
@@ -502,6 +506,106 @@ npm run dev
 - 邮箱：`admin@jumpfrp.top`
 
 ⚠️ **生产环境必须修改默认密码！**
+
+### 6.4 frpc 配置说明
+
+每个隧道的 frpc 配置文件由后端自动生成，包含：
+
+```toml
+[common]
+server_addr = "节点IP"
+server_port = 7000
+auth.method = "token"
+auth.token = "用户APIToken"  # 自动生成，用于认证
+pool_count = 10
+transport.tcp_mux = true
+transport.protocol = "tcp"
+
+[[proxies]]
+name = "隧道名称"
+type = "tcp"
+local_ip = "127.0.0.1"
+local_port = 8080
+remote_port = 12345
+bandwidth_limit = "5MB"
+```
+
+**重要说明：**
+- ✅ 每个隧道的配置文件只包含该隧道的 `[[proxies]]` 段
+- ❌ 用户不应手动修改配置文件或添加多个 `[[proxies]]` 段
+- ✅ 如需多个隧道，应在平台上创建多个隧道，分别下载配置
+- ✅ 修改隧道配置后，需重新下载 frpc 配置文件并重启 frpc 客户端
+
+### 6.5 APIToken 自动生成
+
+- 新用户注册时自动生成 32 位随机 token
+- 旧用户首次启动时自动生成 token（如果为空）
+- Token 用于 frpc 客户端认证，不可修改或重置
+
+---
+
+## 七、常见问题
+
+### Q1: frpc 连接失败 - "token in login doesn't match"
+
+**原因**：用户的 APIToken 为空或不正确
+
+**解决**：
+1. 重启主控服务（会自动为所有用户生成 token）
+2. 重新下载 frpc 配置文件
+3. 重启 frpc 客户端
+
+### Q2: 如何修改隧道配置？
+
+**步骤**：
+1. 进入"我的隧道"页面
+2. 点击隧道卡片的"编辑"按钮
+3. 修改节点、协议、本地 IP、本地端口
+4. 点击"保存"
+5. 重新下载 frpc 配置文件
+6. 重启 frpc 客户端
+
+### Q3: VIP 过期后隧道会怎样？
+
+**行为**：
+- 所有隧道自动关闭（enabled = false）
+- 带宽限制降为 1 Mbps
+- 用户无法创建新隧道（超过 Free 限制）
+- 续费后可手动开启隧道
+
+### Q4: Free 用户最多能开启几条隧道？
+
+**限制**：
+- Free 用户最多 1 条启用的隧道
+- 可创建多条隧道，但同时只能启用 1 条
+- 需要启用其他隧道时，先关闭当前隧道
+
+---
+
+## 八、更新日志
+
+### v2.1 (2026-03-29)
+
+**新增功能**：
+- ✅ 隧道编辑功能（修改节点、协议、本地 IP、本地端口）
+- ✅ 隧道开关功能（启用/禁用隧道）
+- ✅ APIToken 自动生成（新用户注册时生成，旧用户启动时补齐）
+- ✅ VIP 过期自动处理（关闭隧道、降低带宽）
+
+**修复**：
+- 🔧 修复 frpc 配置中 token 不匹配的问题
+- 🔧 修复用户节点列表查询问题
+- 🔧 修复前端 TypeScript 类型错误
+
+### v2.0 (2026-03-27)
+
+**完整功能**：
+- 用户系统（注册、登录、VIP 分级）
+- 隧道管理（创建、删除、下载配置）
+- 域名管理（申请、审批、绑定）
+- 节点管理（添加、编辑、删除）
+- 带宽限制（按用户 VIP 等级限制）
+- 邮件通知（验证码、VIP 到期提醒）
 
 ---
 

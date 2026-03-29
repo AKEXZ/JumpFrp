@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"log"
 	"net/http"
 
@@ -104,6 +106,10 @@ func main() {
 
 	// 启动服务
 	log.Printf("JumpFrp Master starting on %s", cfg.Server.Addr)
+	
+	// 为所有没有 APIToken 的用户生成 token
+	ensureAllUsersHaveToken(db)
+	
 	if err := r.Run(cfg.Server.Addr); err != nil {
 		log.Fatalf("failed to start server: %v", err)
 	}
@@ -170,3 +176,29 @@ func fixMissingColumns(db *gorm.DB) {
 
 	log.Println("数据库列修复完成")
 }
+
+// generateToken 生成随机 token
+func generateToken(length int) string {
+	b := make([]byte, length)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// ensureAllUsersHaveToken 为所有没有 APIToken 的用户生成 token
+func ensureAllUsersHaveToken(db *gorm.DB) {
+	var users []model.User
+	db.Where("api_token = '' OR api_token IS NULL").Find(&users)
+	
+	if len(users) == 0 {
+		return
+	}
+	
+	for _, user := range users {
+		user.APIToken = generateToken(32)
+		db.Model(&user).Update("api_token", user.APIToken)
+		log.Printf("[Token] 为用户 %s 生成 APIToken", user.Username)
+	}
+	
+	log.Printf("[Token] 共为 %d 个用户生成了 APIToken", len(users))
+}
+
